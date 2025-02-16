@@ -17,7 +17,7 @@ def daily_games(
     """
     try:
         games = endpoints.scoreboardv2.ScoreboardV2(game_date=game_date)
-        sleep(random.uniform(2, 5))
+        sleep(random.uniform(20, 40))
         game_list = games.get_dict()["resultSets"][0]["rowSet"]
         df = pl.DataFrame(
             data={
@@ -46,7 +46,7 @@ def boxscore(
     """
     try:
         bs_traditional = endpoints.boxscoretraditionalv3.BoxScoreTraditionalV3(game_id=game_id)
-        sleep(random.uniform(2, 5))
+        sleep(random.uniform(20, 40))
         bs_traditional = pl.concat([
             pl.DataFrame(
                 bs_traditional.get_dict()["boxScoreTraditional"]["homeTeam"]["statistics"]
@@ -56,7 +56,7 @@ def boxscore(
             ).rename(lambda c: c + "_away")
         ], how="horizontal")
         bs_advanced = endpoints.boxscoreadvancedv3.BoxScoreAdvancedV3(game_id=game_id)
-        sleep(random.uniform(2, 5))
+        sleep(random.uniform(20, 40))
         bs_advanced = pl.concat([
             pl.DataFrame(
                 bs_advanced.get_dict()["boxScoreAdvanced"]["homeTeam"]["statistics"]
@@ -68,7 +68,7 @@ def boxscore(
                 lambda c: c + "_away")
         ], how="horizontal")
         bs_four_factors = endpoints.boxscorefourfactorsv3.BoxScoreFourFactorsV3(game_id=game_id)
-        sleep(random.uniform(2, 5))
+        sleep(random.uniform(20, 40))
         bs_four_factors = pl.concat([
             pl.DataFrame(
                 bs_four_factors.get_dict()["boxScoreFourFactors"]["homeTeam"]["statistics"]
@@ -78,7 +78,7 @@ def boxscore(
             ).rename(lambda c: c + "_away")
         ], how="horizontal")
         bs_hustle = endpoints.boxscorehustlev2.BoxScoreHustleV2(game_id=game_id)
-        sleep(random.uniform(2, 5))
+        sleep(random.uniform(20, 40))
         bs_hustle = pl.concat([
             pl.DataFrame(
                 bs_hustle.get_dict()["boxScoreHustle"]["homeTeam"]["statistics"]
@@ -88,7 +88,7 @@ def boxscore(
             ).rename(lambda c: c + "_away")
         ], how="horizontal")
         bs_misc = endpoints.boxscoremiscv3.BoxScoreMiscV3(game_id=game_id)
-        sleep(random.uniform(2, 5))
+        sleep(random.uniform(20, 40))
         bs_misc = pl.concat([
             pl.DataFrame(
                 bs_misc.get_dict()["boxScoreMisc"]["homeTeam"]["statistics"]
@@ -98,7 +98,7 @@ def boxscore(
             ).rename(lambda c: c + "_away")
         ], how="horizontal")
         bs_player_track = endpoints.boxscoreplayertrackv3.BoxScorePlayerTrackV3(game_id=game_id)
-        sleep(random.uniform(2, 5))
+        sleep(random.uniform(20, 40))
         bs_player_track = pl.concat([
             pl.DataFrame(
                 bs_player_track.get_dict()["boxScorePlayerTrack"]["homeTeam"]["statistics"]
@@ -108,7 +108,7 @@ def boxscore(
             ).rename(lambda c: c + "_away")
         ], how="horizontal")
         bs_scoring = endpoints.boxscorescoringv3.BoxScoreScoringV3(game_id=game_id)
-        sleep(random.uniform(2, 5))
+        sleep(random.uniform(20, 40))
         bs_scoring = pl.concat([
             pl.DataFrame(
                 bs_scoring.get_dict()["boxScoreScoring"]["homeTeam"]["statistics"]
@@ -118,7 +118,7 @@ def boxscore(
             ).rename(lambda c: c + "_away")
         ], how="horizontal")
         bs_usage = endpoints.boxscoreusagev3.BoxScoreUsageV3(game_id=game_id)
-        sleep(random.uniform(2, 5))
+        sleep(random.uniform(20, 40))
         bs_usage = pl.concat([
             pl.DataFrame(
                 bs_usage.get_dict()["boxScoreUsage"]["homeTeam"]["statistics"]
@@ -176,7 +176,7 @@ def team_details(
         "team_id": details[0],
         "arena_capacity": details[6]
     }
-    sleep(random.uniform(2, 5))
+    sleep(random.uniform(20, 40))
     details = pl.DataFrame(details).with_columns(pl.col("arena_capacity").cast(pl.Int64))
     return details
 
