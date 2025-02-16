@@ -1,0 +1,4 @@
+polars
+nba_api
+tqdm
+numpy

@@ -1,0 +1,15 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap')
+
+/*.stMetric p {
+  font-family: "Inter", serif !important;
+  font-optical-sizing: auto;
+  font-weight: 500;
+  font-style: normal;
+  color: red !important;
+}*/
+.stMetric p {
+    /* Your styles here */
+    color: blue !important;
+    font-size: 16px !important;
+    margin: 10px 0 !important;
+}
