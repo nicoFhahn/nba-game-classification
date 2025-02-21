@@ -1,6 +1,9 @@
 from datetime import date, timedelta
 from typing import List
+from tqdm import tqdm
 
+import json
+import joblib
 import os
 import polars as pl
 import polars.selectors as cs
@@ -40,11 +43,11 @@ def load_schedule(
           )
       ).alias("game_type")
   )
-  games_df = pl.read_parquet(os.path.join(folder, filename_games))
+  games_df = pl.read_parquet(os.path.join(folder, filename_games)).unique("game_id")
   df = schedule_df.unique().join(
       games_df,
       on="game_id",
-      how="inner",
+      how="left",
       validate="1:1"
   )
   return df
@@ -117,7 +120,7 @@ def team_boxscore(
 
 def team_season_stats(
     df: pl.DataFrame,
-    window_sizes: list[int] = [3, 5, 10, 109]
+    window_sizes: list[int] = [8, 109]
     ) -> pl.DataFrame:
     """
     Extracts the stats of a team heading into a game
@@ -634,3 +637,305 @@ def merge_schedule_with_team_stats(
   )
   schedule_df = schedule_df.sort("date").drop(["is_win_home_team", "is_win_away_team"])
   return schedule_df
+
+def load_season(
+    game_list_files: List[str],
+    schedule_files: List[str],
+    folder: str,
+    all_star_date: date,
+    play_in_start: date,
+    play_in_end: date,
+    return_h2h: bool = False
+) -> pl.DataFrame:
+    schedule_last_season = pl.read_parquet(
+        os.path.join(folder, schedule_files[0])
+    )
+    game_list_last_season = pl.read_parquet(
+        os.path.join(folder, game_list_files[0])
+    ).unique("game_id")
+    schedule_current_season = load_schedule(
+        all_star_date,
+        play_in_start,
+        play_in_end,
+        schedule_files[1],
+        game_list_files[1],
+        folder
+    )
+    team_schedules_current_season = get_team_schedules(schedule_current_season)
+    team_ids = list(set(schedule_current_season["home_team_id"]))
+    team_boxscores_current_season = [
+        team_boxscore(
+            team_schedules_current_season[i],
+            team_ids[i]
+        ) for i in range(len(team_ids))
+    ]
+    team_stats_current_season = [team_season_stats(team) for team in tqdm(team_boxscores_current_season)]
+    schedule_last_season = schedule_last_season.join(
+        game_list_last_season[["game_id", "points_home", "points_away"]], 
+        on="game_id"
+    )
+    schedule_current_season = head_to_head(
+      schedule_current_season, schedule_last_season
+    )
+    if return_h2h:
+        return schedule_current_season.select([
+            "game_id", "previous_wins", "previous_games", "wins_last_year", "games_last_year"
+        ])
+    schedule_current_season = merge_schedule_with_team_stats(
+      schedule_current_season, team_stats_current_season
+    )
+    schedule_current_season = location_winning_percentage(
+        schedule_current_season
+    )
+    schedule_current_season = schedule_current_season.with_columns([
+        pl.col("date").dt.month().cast(pl.String).alias("month"),
+        pl.col("date").dt.weekday().cast(pl.String).alias("weekday")
+    ])
+    return schedule_current_season
+
+def newest_games():
+    team_df = pl.read_parquet(
+        os.path.join(
+            os.path.dirname(__file__), "..", "data", "team_details.parquet"
+        )
+    )
+    mod = joblib.load(
+        os.path.join(
+            os.path.dirname(__file__), "..", "models", "lgbm_model.pkl"
+        )
+    )
+    with open(
+            os.path.join(
+                os.path.dirname(__file__), "..", "models", "lgbm_evaluation.json"
+            ), "r"
+    ) as f:
+        results = json.loads(f.read())
+    best_features=results["features"]["trained_on"][results["performance"]["accuracy"].index(max(results["performance"]["accuracy"]))]
+    games = pl.concat([
+        pl.read_parquet(os.path.join(os.path.dirname(__file__), "..", "data", "season_2021.parquet")),
+        pl.read_parquet(os.path.join(os.path.dirname(__file__), "..", "data", "season_2022.parquet")),
+        pl.read_parquet(os.path.join(os.path.dirname(__file__), "..", "data", "season_2023.parquet")),
+        pl.read_parquet(os.path.join(os.path.dirname(__file__), "..", "data", "season_2024.parquet"))
+    ]).with_columns([
+        (pl.col("previous_home_games") - pl.col("previous_home_wins")).alias("previous_home_losses"),
+        (pl.col("previous_away_games") - pl.col("previous_away_wins")).alias("previous_away_losses"),
+        pl.when(
+            (pl.col("current_winning_streak_home_team") == 0) & (pl.col("current_losing_streak_home_team") > 0)
+        ).then(
+            pl.concat_str(
+                pl.col("current_losing_streak_home_team"), pl.lit("L")
+            )
+        ).otherwise(
+            pl.concat_str(
+                pl.col("current_winning_streak_home_team"), pl.lit("W")
+            )
+        ).alias("streak_home"),
+        pl.when(
+            (pl.col("current_winning_streak_away_team") == 0) & (pl.col("current_losing_streak_away_team") > 0)
+        ).then(
+            pl.concat_str(
+                pl.col("current_losing_streak_away_team"), pl.lit("L")
+            )
+        ).otherwise(
+            pl.concat_str(
+                pl.col("current_winning_streak_away_team"), pl.lit("W")
+            )
+        ).alias("streak_away")
+    ]).with_columns([
+        pl.concat_str(
+            pl.col("previous_home_wins"),
+            pl.lit("-"),
+            pl.col("previous_home_losses")
+        ).alias("home_record"),
+        pl.concat_str(
+            pl.col("previous_away_wins"),
+            pl.lit("-"),
+            pl.col("previous_away_losses")
+        ).alias("away_record"),
+    ])
+    h2h_df = pl.read_parquet(os.path.join(os.path.dirname(__file__), "..", "data", "h2h_2024.parquet"))
+    h2h_df = h2h_df.with_columns([
+        (pl.col("previous_games") - pl.col("previous_wins")).alias("previous_losses"),
+        (pl.col("games_last_year") - pl.col("wins_last_year")).alias("losses_last_year")
+    ]).with_columns([
+        pl.concat_str(
+            pl.col("previous_wins"),
+            pl.lit("-"),
+            pl.col("previous_losses")
+        ).alias("h2h_current_year"),
+        pl.concat_str(
+            pl.col("wins_last_year"),
+            pl.lit("-"),
+            pl.col("losses_last_year")
+        ).alias("h2h_last_year")
+    ]).select([
+        "game_id", "h2h_current_year", "h2h_last_year"
+    ])
+    record_df = pl.read_parquet(os.path.join(os.path.dirname(__file__), "..", "data", "record_2024.parquet"))
+    record_df = record_df.with_columns([
+        (pl.col("games_this_year_home_team") - pl.col("wins_this_year_home_team")).alias("losses_this_year_home_team"),
+        (pl.col("games_this_year_away_team") - pl.col("wins_this_year_away_team")).alias("losses_this_year_away_team")
+    ]).with_columns([
+        pl.concat_str(
+            pl.col("wins_this_year_home_team"),
+            pl.lit("-"),
+            pl.col("losses_this_year_home_team")
+        ).alias("record_home_team"),
+        pl.concat_str(
+            pl.col("wins_this_year_away_team"),
+            pl.lit("-"),
+            pl.col("losses_this_year_away_team")
+        ).alias("record_away_team")
+    ]).select([
+        "game_id", "record_home_team", "record_away_team"
+    ])
+    X_new = games.to_dummies([
+        "game_type", "month", "weekday"
+    ]).drop([
+        "game_id", "home_team_id", "away_team_id"
+    ]).filter(
+        pl.col("is_home_win").is_null()
+    ).select(pl.col(best_features)).drop("date")
+    predictions = mod.predict(X_new.to_numpy())
+    games = games.to_dummies([
+        "game_type", "month", "weekday"
+    ]).filter(
+        pl.col("is_home_win").is_null()
+    ).with_columns([
+        pl.Series("probability", predictions)
+    ]).with_columns([
+        pl.when(
+            pl.col("probability") < 0.5
+        ).then(
+            100 - 100 * pl.col("probability")
+        ).otherwise(
+            100 * pl.col("probability")
+        ).alias("probability"),
+        pl.when(
+            pl.col("probability") >= 0.5
+        ).then(
+            pl.concat_str(
+                pl.lit("https://raw.githubusercontent.com/nicoFhahn/nba-game-classification/main/streamlit/logos/"),
+                pl.col("home_team_id"),
+                pl.lit(".png")
+            )
+        ).otherwise(
+            pl.concat_str(
+                pl.lit("https://raw.githubusercontent.com/nicoFhahn/nba-game-classification/main/streamlit/logos/"),
+                pl.col("away_team_id"),
+                pl.lit(".png")
+            )
+        ).alias("winner_logo")
+    ]).join(
+        team_df.rename({"team_name": "home_team_name"}),
+        left_on="home_team_id",
+        right_on="team_id"
+    ).join(
+        team_df.rename({"team_name": "away_team_name"}),
+        left_on="away_team_id",
+        right_on="team_id"
+    ).drop("h2h_current_year").join(
+        h2h_df,
+        on="game_id"
+    ).join(
+        record_df,
+        on="game_id"
+    ).select([
+        "date", "home_team_name", "away_team_name", "winner_logo", "probability", "h2h_current_year", "h2h_last_year",
+        "record_home_team", "winning_percentage_home_team", "record_away_team", "winning_percentage_away_team",
+        "home_record", "winning_percentage_home", "away_record", "winning_percentage_away",
+        "streak_home", "streak_away"
+    ]).with_columns([
+        (100 * pl.col(c)).alias(c)
+        for c in [
+            "winning_percentage_home_team", "winning_percentage_away_team",
+            "winning_percentage_home", "winning_percentage_away"
+        ]
+    ])
+    return games
+
+def record_current_season(
+    all_star_date: date,
+    play_in_start: date,
+    play_in_end: date,
+    filename_schedule: str,
+    filename_games: str,
+    folder: str = "data"
+):
+    schedule_current_season = load_schedule(
+        all_star_date,
+        play_in_start,
+        play_in_end,
+        filename_schedule,
+        filename_games,
+        folder
+    )
+    schedule_current_season = schedule_current_season.select([
+        "date", "game_id", "home_team_id", "away_team_id", "points_home", "points_away"
+    ]).with_columns([
+        pl.struct([
+            "date", "home_team_id"
+        ]).map_elements(
+            lambda x: schedule_current_season.filter(
+                (
+                        (pl.col("home_team_id") == x["home_team_id"]) |
+                        (pl.col("away_team_id") == x["home_team_id"])
+                ) &
+                (
+                        pl.col("date") < x["date"]
+                )
+            ).shape[0], return_dtype=pl.Int64
+        ).alias("games_this_year_home_team"),
+        pl.struct([
+            "date", "away_team_id"
+        ]).map_elements(
+            lambda x: schedule_current_season.filter(
+                (
+                        (pl.col("home_team_id") == x["away_team_id"]) |
+                        (pl.col("away_team_id") == x["away_team_id"])
+                ) &
+                (
+                        pl.col("date") < x["date"]
+                )
+            ).shape[0], return_dtype=pl.Int64
+        ).alias("games_this_year_away_team"),
+        pl.struct([
+            "date", "home_team_id"
+        ]).map_elements(
+            lambda x: schedule_current_season.filter(
+                (
+                        (
+                                (pl.col("home_team_id") == x["home_team_id"]) &
+                                (pl.col("points_home") > pl.col("points_away"))
+                        ) |
+                        (
+                                (pl.col("away_team_id") == x["home_team_id"]) &
+                                (pl.col("points_home") < pl.col("points_away"))
+                        )
+                ) &
+                (
+                        pl.col("date") < x["date"]
+                )
+            ).shape[0], return_dtype=pl.Int64
+        ).alias("wins_this_year_home_team"),
+        pl.struct([
+            "date", "away_team_id"
+        ]).map_elements(
+            lambda x: schedule_current_season.filter(
+                (
+                        (
+                                (pl.col("home_team_id") == x["away_team_id"]) &
+                                (pl.col("points_home") > pl.col("points_away"))
+                        ) |
+                        (
+                                (pl.col("away_team_id") == x["away_team_id"]) &
+                                (pl.col("points_home") < pl.col("points_away"))
+                        )
+                ) &
+                (
+                        pl.col("date") < x["date"]
+                )
+            ).shape[0], return_dtype=pl.Int64
+        ).alias("wins_this_year_away_team"),
+    ]).sort("date").drop(["date", "home_team_id", "away_team_id", "points_home", "points_away"])
+    return schedule_current_season

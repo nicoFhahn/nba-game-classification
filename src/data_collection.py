@@ -157,6 +157,9 @@ def boxscore(
         df = df.with_columns([
             pl.lit(game_id).alias("game_id")
         ])
+
+    except AttributeError as e:
+        return None
     except Exception as e:
         print(e)
         df = boxscore(game_id)
@@ -224,6 +227,8 @@ def season(
             continue
         else:
             game_boxscore = boxscore(game_id)
+            if game_boxscore is None:
+                continue
             games_list.append(game_boxscore)
             if df_exists:
                 current_games_df = pl.concat(games_list)
