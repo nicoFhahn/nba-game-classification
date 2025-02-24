@@ -2,3 +2,12 @@ polars
 nba_api
 tqdm
 numpy
+lightgbm
+scikit-learn
+shap
+joblib
+matplotlib
+jupyterlab
+optuna
+streamlit-shadcn-ui
+streamlit-nightly
