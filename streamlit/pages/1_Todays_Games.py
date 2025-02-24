@@ -80,6 +80,16 @@ st.dataframe(
         "streak_away": st.column_config.TextColumn(
             label="Current Streak Road",
             width=120
+        ),
+        "elo_home_team": st.column_config.NumberColumn(
+            label="Elo Home",
+            format='%.0f',
+            help="Elo Rating of the home team"
+        ),
+        "elo_away_team": st.column_config.NumberColumn(
+            label="Elo Road",
+            format='%.0f',
+            help="Elo Rating of the road team"
         )
     },
     use_container_width=True,
