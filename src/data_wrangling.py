@@ -1,12 +1,13 @@
+import sys
 from datetime import date, timedelta
 from typing import List
 from tqdm import tqdm
 
-import json
-import joblib
 import os
 import polars as pl
 import polars.selectors as cs
+sys.path.append(os.path.abspath(os.path.dirname(__file__)))
+import modelling
 
 def load_schedule(
     all_star_date: date,
@@ -699,24 +700,10 @@ def newest_games():
             os.path.dirname(__file__), "..", "data", "team_details.parquet"
         )
     )
-    mod = joblib.load(
-        os.path.join(
-            os.path.dirname(__file__), "..", "models", "lgbm_model.pkl"
-        )
-    )
-    with open(
-            os.path.join(
-                os.path.dirname(__file__), "..", "models", "lgbm_evaluation.json"
-            ), "r"
-    ) as f:
-        results = json.loads(f.read())
-    best_features=results["features"]["trained_on"][results["performance"]["accuracy"].index(max(results["performance"]["accuracy"]))]
-    games = pl.concat([
-        pl.read_parquet(os.path.join(os.path.dirname(__file__), "..", "data", "season_2021.parquet")),
-        pl.read_parquet(os.path.join(os.path.dirname(__file__), "..", "data", "season_2022.parquet")),
-        pl.read_parquet(os.path.join(os.path.dirname(__file__), "..", "data", "season_2023.parquet")),
-        pl.read_parquet(os.path.join(os.path.dirname(__file__), "..", "data", "season_2024.parquet"))
-    ]).with_columns([
+    mod = modelling.lgbm_model()
+    mod.load_data()
+    mod.load_model()
+    games = mod.full_data.with_columns([
         (pl.col("previous_home_games") - pl.col("previous_home_wins")).alias("previous_home_losses"),
         (pl.col("previous_away_games") - pl.col("previous_away_wins")).alias("previous_away_losses"),
         pl.when(
@@ -789,18 +776,21 @@ def newest_games():
     ]).select([
         "game_id", "record_home_team", "record_away_team"
     ])
+    best_features = mod.load_best_features()[0]
     X_new = games.to_dummies([
         "game_type", "month", "weekday"
     ]).drop([
         "game_id", "home_team_id", "away_team_id"
     ]).filter(
-        pl.col("is_home_win").is_null()
+        (pl.col("is_home_win").is_null()) &
+        (pl.col("date") == games.filter(pl.col("is_home_win").is_null())["date"].min())
     ).select(pl.col(best_features)).drop("date")
-    predictions = mod.predict(X_new.to_numpy())
+    predictions = mod.model.predict(X_new.to_numpy())
     games = games.to_dummies([
         "game_type", "month", "weekday"
     ]).filter(
-        pl.col("is_home_win").is_null()
+        (pl.col("is_home_win").is_null()) &
+        (pl.col("date") == games.filter(pl.col("is_home_win").is_null())["date"].min())
     ).with_columns([
         pl.Series("probability", predictions)
     ]).with_columns([
@@ -844,7 +834,7 @@ def newest_games():
         "date", "home_team_name", "away_team_name", "winner_logo", "probability", "h2h_current_year", "h2h_last_year",
         "record_home_team", "winning_percentage_home_team", "record_away_team", "winning_percentage_away_team",
         "home_record", "winning_percentage_home", "away_record", "winning_percentage_away",
-        "streak_home", "streak_away"
+        "streak_home", "streak_away", "elo_home_team", "elo_away_team"
     ]).with_columns([
         (100 * pl.col(c)).alias(c)
         for c in [
@@ -937,5 +927,5 @@ def record_current_season(
                 )
             ).shape[0], return_dtype=pl.Int64
         ).alias("wins_this_year_away_team"),
-    ]).sort("date").drop(["date", "home_team_id", "away_team_id", "points_home", "points_away"])
+    ]).sort("date")
     return schedule_current_season
