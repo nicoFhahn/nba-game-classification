@@ -4,13 +4,9 @@ import os
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'src')))
 import data_wrangling
-import importlib
-
-importlib.reload(data_wrangling)
-
 st.set_page_config(layout="wide")
 
-df_today = data_wrangling.newest_games()
+df_today = data_wrangling.newest_games().drop('game_id')
 st.dataframe(
     df_today,
     column_config={
