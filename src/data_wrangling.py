@@ -834,14 +834,14 @@ def newest_games():
         "date", "home_team_name", "away_team_name", "winner_logo", "probability", "h2h_current_year", "h2h_last_year",
         "record_home_team", "winning_percentage_home_team", "record_away_team", "winning_percentage_away_team",
         "home_record", "winning_percentage_home", "away_record", "winning_percentage_away",
-        "streak_home", "streak_away", "elo_home_team", "elo_away_team"
+        "streak_home", "streak_away", "elo_home_team", "elo_away_team", "game_id"
     ]).with_columns([
         (100 * pl.col(c)).alias(c)
         for c in [
             "winning_percentage_home_team", "winning_percentage_away_team",
             "winning_percentage_home", "winning_percentage_away"
         ]
-    ])
+    ]).sort('game_id')
     return games
 
 def record_current_season(

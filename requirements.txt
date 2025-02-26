@@ -10,4 +10,4 @@ matplotlib
 jupyterlab
 optuna
 streamlit-shadcn-ui
-streamlit-nightly
+streamlit-nightly==1.42.3.dev20250223

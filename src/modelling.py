@@ -72,26 +72,31 @@ class lgbm_model():
         df = self.full_data.to_dummies([
             'game_type', 'month', 'weekday'
         ]).drop([
-            'game_id', 'home_team_id', 'away_team_id'
+            'home_team_id', 'away_team_id'
         ])
         train = df.filter(
             (pl.col('date') >= train_start) &
             (pl.col('date') < train_end)
-        )
+        ).sort(['date', 'game_id'])
         test = df.filter(
             (pl.col('date') >= train_end) &
             (pl.col('date') < val_start)
-        ).drop_nulls('is_home_win')
+        ).drop_nulls('is_home_win').sort(['date', 'game_id'])
         val = df.filter(
             (pl.col('date') >= val_start) &
             (pl.col('date') < val_end)
-        ).drop_nulls('is_home_win')
+        ).drop_nulls('is_home_win').sort(['date', 'game_id'])
         y_train = train.select('is_home_win')
         y_test = test.select('is_home_win')
         y_val = val.select('is_home_win')
-        X_train = train.drop(['is_home_win'])
-        X_test = test.drop('is_home_win')
-        X_val = val.drop('is_home_win')
+        X_train = train.drop(['is_home_win', 'game_id'])
+        X_test = test.drop(['is_home_win', 'game_id'])
+        X_val = val.drop(['is_home_win', 'game_id'])
+        self.data_sets = {
+            'train': train,
+            'test': test,
+            'val': val
+        }
         self.training_timestamps = {
             'train_start': train_start,
             'train_end': train_end,
@@ -421,6 +426,10 @@ class lgbm_model():
             pl.col("false_positives").cum_sum(),
             pl.col("false_negatives").cum_sum()
         ]).with_columns([
+            pl.col("true_positives").rolling_sum(window_size=14, min_samples=1).alias('true_positives_rolling'),
+            pl.col("true_negatives").rolling_sum(window_size=14, min_samples=1).alias('true_negatives_rolling'),
+            pl.col("false_positives").rolling_sum(window_size=14, min_samples=1).alias('false_positives_rolling'),
+            pl.col("false_negatives").rolling_sum(window_size=14, min_samples=1).alias('false_negatives_rolling'),
             (
                     (
                             pl.col("true_positives") + pl.col("true_negatives")
@@ -448,7 +457,35 @@ class lgbm_model():
                     (
                             pl.col("precision") + pl.col("recall")
                     )
-            ).alias("f1_score")
+            ).alias("f1_score"),
+            (
+                    (
+                            pl.col("true_positives_rolling") + pl.col("true_negatives_rolling")
+                    ) /
+                    (
+                            pl.col("true_positives_rolling") + pl.col("true_negatives_rolling") +
+                            pl.col("false_positives_rolling") + pl.col("false_negatives_rolling")
+                    )
+            ).alias("accuracy_rolling"),
+            (
+                    pl.col("true_positives_rolling") /
+                    (
+                            pl.col("true_positives_rolling") + pl.col("false_positives_rolling")
+                    )
+            ).alias("precision_rolling"),
+            (
+                    pl.col("true_positives_rolling") /
+                    (
+                            pl.col("true_positives_rolling") + pl.col("false_negatives_rolling")
+                    )
+            ).alias("recall_rolling")
+        ]).with_columns([
+            (
+                    2 * pl.col("precision_rolling") * pl.col("recall_rolling") /
+                    (
+                            pl.col("precision_rolling") + pl.col("recall_rolling")
+                    )
+            ).alias("f1_score_rolling")
         ])
 
         def team_performance(df):
