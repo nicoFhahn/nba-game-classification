@@ -1,31 +1,35 @@
+import os
+import json
+import gc
+import glob
 from datetime import date, timedelta, datetime
 from math import floor, ceil
 from functools import partial
 
+import numpy as np
+import polars as pl
 import optuna
+import lightgbm as lgbm
+import joblib
+import shap
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
 from sklearn.model_selection import TimeSeriesSplit
-import os
-import polars as pl
-import numpy as np
-import lightgbm as lgbm
-import json
-import shap
-import gc
-import glob
-import joblib
+from supabase import Client
+
+from data_collection import collect_all_data
+
 
 class lgbm_model():
     def __init__(
             self,
-            data_folder: str = 'data',
+            connection: Client,
             model_folder: str = 'models',
             random_state: int = 7918
     ):
-        self.data_folder = data_folder
+        self.connection = connection
         self.model_folder = model_folder
         self.random_state = random_state
-        self.full_data = None
+        self.load_data()
 
     def accuracy_metric(y_true, y_pred):
         # LightGBM expects the custom metric to return two values:
@@ -38,15 +42,72 @@ class lgbm_model():
             train_size: float = 0.85,
             remove_size: float = 0.05
     ) -> pl.DataFrame:
-        """
+        '''
 
         :param train_size:
         :param remove_size:
         :return:
-        """
-        self.full_data = pl.read_parquet(
-            os.path.join(self.data_folder, 'season_df.parquet')
-        ).sort('date')
+        '''
+        df_1 = collect_all_data(
+            'schedule',
+            self.connection
+        )
+        df_2 = collect_all_data(
+            'elo',
+            self.connection
+        ).drop('id')
+        df_3 = collect_all_data(
+            'statistics_previous',
+            self.connection
+        )
+        df_4 = collect_all_data(
+            'statistics_recent_games',
+            self.connection
+        )
+        df_5 = collect_all_data(
+            'statistics_season',
+            self.connection
+        )
+        df_6 = collect_all_data(
+            'statistics_remainder',
+            self.connection
+        )
+        current_elo = df_2.with_columns(pl.col('date').str.to_date()).group_by('team_id').tail(1).select(
+            ['team_id', 'elo_after'])
+        temp_df = df_1.join(
+            df_3, on='game_id'
+        ).join(
+            df_4, on='game_id'
+        ).join(
+            df_5, on='game_id'
+        ).join(
+            df_6, on='game_id'
+        ).join(
+            df_2.drop(['elo_after', 'date']),
+            left_on=['game_id', 'home_team_id'],
+            right_on=['game_id', 'team_id'],
+            how='left'
+        ).join(
+            df_2.drop(['elo_after', 'date']),
+            left_on=['game_id', 'away_team_id'],
+            right_on=['game_id', 'team_id'],
+            how='left'
+        ).join(
+            current_elo,
+            left_on='home_team_id',
+            right_on='team_id'
+        ).join(
+            current_elo,
+            left_on='away_team_id',
+            right_on='team_id'
+        ).with_columns([
+            pl.coalesce(pl.col('elo_before'), pl.col('elo_after')).alias('elo_home_team'),
+            pl.coalesce(pl.col('elo_before_right'), pl.col('elo_after_right')).alias('elo_away_team'),
+            pl.col('date').str.to_date()
+        ]).drop([
+            'elo_before', 'elo_before_right', 'elo_after', 'elo_after_right', 'season_id'
+        ])
+        self.full_data = temp_df.sort('date')
         start_date = date.today().replace(day=1)
         train_start = self.full_data[
             :floor(
@@ -119,12 +180,12 @@ class lgbm_model():
             n_folds: int = 5,
             use_shapley: bool = True
     ):
-        """
+        '''
 
         :param n_folds:
         :param use_shapley:
         :return:
-        """
+        '''
         split = TimeSeriesSplit(n_folds)
         filename = f'{self.model_folder}/lgbm_evaluation_{self.training_timestamps['val_end'].strftime('%B')}_{self.training_timestamps['val_end'].year}2.json'.lower()
         if filename in os.listdir(self.model_folder):
@@ -371,17 +432,15 @@ class lgbm_model():
 
     def predict(self):
         best_features, cutoff_date = self.load_best_features()
-        if 'predictions.parquet' in os.listdir(self.data_folder):
-            previous_predictions = pl.read_parquet(
-                os.path.join(self.data_folder, 'predictions.parquet')
-            )
-            cutoff_date = self.full_data.join(
-                previous_predictions,
-                on='game_id',
-                how='inner'
-            )['date'].max()
+        previous_predictions = collect_all_data('predictions', self.connection)
+        cutoff_date = self.full_data.join(
+            previous_predictions,
+            on='game_id',
+            how='inner'
+        )['date'].max()
         X_new = self.full_data.filter(
-            pl.col('date') > cutoff_date
+            (pl.col('date') > cutoff_date) &
+            (pl.col('is_home_win').is_not_null())
         ).to_dummies([
             'game_type', 'month', 'weekday'
         ])
@@ -393,149 +452,143 @@ class lgbm_model():
             'probability': predictions,
             'is_home_win': predictions >= 0.5
         })
-        if 'predictions.parquet' in os.listdir(self.data_folder):
-            prediction_df = pl.concat([previous_predictions, prediction_df])
-        prediction_df.write_parquet(
-            os.path.join(self.data_folder, 'predictions.parquet')
-        )
+        response = self.connection.table('predictions').insert(prediction_df.to_dicts()).execute()
 
     def evaluate_performance(self):
-        predictions = pl.read_parquet(
-            os.path.join(self.data_folder, 'predictions.parquet')
-        )
+        predictions = collect_all_data('predictions', self.connection)
         if self.full_data is None:
             self.load_data()
-        prediction_df = self.full_data.select(pl.col(["date", "game_id", "home_team_id", "away_team_id", "is_home_win"])).join(
+        prediction_df = self.full_data.select(pl.col(['date', 'game_id', 'home_team_id', 'away_team_id', 'is_home_win'])).join(
             predictions,
-            on="game_id"
+            on='game_id'
         ).rename({
-            "is_home_win_right": "is_predicted_home_win"
+            'is_home_win_right': 'is_predicted_home_win'
         })
-        performance_df = prediction_df.group_by("date").agg([
-            ((pl.col("is_home_win") == pl.col("is_predicted_home_win")) & (pl.col("is_home_win"))).sum().alias(
-                "true_positives"),
-            ((pl.col("is_home_win") == pl.col("is_predicted_home_win")) & (~pl.col("is_home_win"))).sum().alias(
-                "true_negatives"),
-            ((pl.col("is_home_win") != pl.col("is_predicted_home_win")) & (pl.col("is_home_win"))).sum().alias(
-                "false_positives"),
-            ((pl.col("is_home_win") != pl.col("is_predicted_home_win")) & (~pl.col("is_home_win"))).sum().alias(
-                "false_negatives")
+        performance_df = prediction_df.group_by('date').agg([
+            ((pl.col('is_home_win') == pl.col('is_predicted_home_win')) & (pl.col('is_home_win'))).sum().alias(
+                'true_positives'),
+            ((pl.col('is_home_win') == pl.col('is_predicted_home_win')) & (~pl.col('is_home_win'))).sum().alias(
+                'true_negatives'),
+            ((pl.col('is_home_win') != pl.col('is_predicted_home_win')) & (pl.col('is_home_win'))).sum().alias(
+                'false_positives'),
+            ((pl.col('is_home_win') != pl.col('is_predicted_home_win')) & (~pl.col('is_home_win'))).sum().alias(
+                'false_negatives')
         ]).with_columns([
-            pl.col("true_positives").cum_sum(),
-            pl.col("true_negatives").cum_sum(),
-            pl.col("false_positives").cum_sum(),
-            pl.col("false_negatives").cum_sum()
+            pl.col('true_positives').cum_sum(),
+            pl.col('true_negatives').cum_sum(),
+            pl.col('false_positives').cum_sum(),
+            pl.col('false_negatives').cum_sum()
         ]).with_columns([
-            pl.col("true_positives").rolling_sum(window_size=14, min_samples=1).alias('true_positives_rolling'),
-            pl.col("true_negatives").rolling_sum(window_size=14, min_samples=1).alias('true_negatives_rolling'),
-            pl.col("false_positives").rolling_sum(window_size=14, min_samples=1).alias('false_positives_rolling'),
-            pl.col("false_negatives").rolling_sum(window_size=14, min_samples=1).alias('false_negatives_rolling'),
+            pl.col('true_positives').rolling_sum(window_size=14, min_samples=1).alias('true_positives_rolling'),
+            pl.col('true_negatives').rolling_sum(window_size=14, min_samples=1).alias('true_negatives_rolling'),
+            pl.col('false_positives').rolling_sum(window_size=14, min_samples=1).alias('false_positives_rolling'),
+            pl.col('false_negatives').rolling_sum(window_size=14, min_samples=1).alias('false_negatives_rolling'),
             (
                     (
-                            pl.col("true_positives") + pl.col("true_negatives")
+                            pl.col('true_positives') + pl.col('true_negatives')
                     ) /
                     (
-                            pl.col("true_positives") + pl.col("true_negatives") +
-                            pl.col("false_positives") + pl.col("false_negatives")
+                            pl.col('true_positives') + pl.col('true_negatives') +
+                            pl.col('false_positives') + pl.col('false_negatives')
                     )
-            ).alias("accuracy"),
+            ).alias('accuracy'),
             (
-                    pl.col("true_positives") /
+                    pl.col('true_positives') /
                     (
-                            pl.col("true_positives") + pl.col("false_positives")
+                            pl.col('true_positives') + pl.col('false_positives')
                     )
-            ).alias("precision"),
+            ).alias('precision'),
             (
-                    pl.col("true_positives") /
+                    pl.col('true_positives') /
                     (
-                            pl.col("true_positives") + pl.col("false_negatives")
+                            pl.col('true_positives') + pl.col('false_negatives')
                     )
-            ).alias("recall")
+            ).alias('recall')
         ]).with_columns([
             (
-                    2 * pl.col("precision") * pl.col("recall") /
+                    2 * pl.col('precision') * pl.col('recall') /
                     (
-                            pl.col("precision") + pl.col("recall")
+                            pl.col('precision') + pl.col('recall')
                     )
-            ).alias("f1_score"),
+            ).alias('f1_score'),
             (
                     (
-                            pl.col("true_positives_rolling") + pl.col("true_negatives_rolling")
+                            pl.col('true_positives_rolling') + pl.col('true_negatives_rolling')
                     ) /
                     (
-                            pl.col("true_positives_rolling") + pl.col("true_negatives_rolling") +
-                            pl.col("false_positives_rolling") + pl.col("false_negatives_rolling")
+                            pl.col('true_positives_rolling') + pl.col('true_negatives_rolling') +
+                            pl.col('false_positives_rolling') + pl.col('false_negatives_rolling')
                     )
-            ).alias("accuracy_rolling"),
+            ).alias('accuracy_rolling'),
             (
-                    pl.col("true_positives_rolling") /
+                    pl.col('true_positives_rolling') /
                     (
-                            pl.col("true_positives_rolling") + pl.col("false_positives_rolling")
+                            pl.col('true_positives_rolling') + pl.col('false_positives_rolling')
                     )
-            ).alias("precision_rolling"),
+            ).alias('precision_rolling'),
             (
-                    pl.col("true_positives_rolling") /
+                    pl.col('true_positives_rolling') /
                     (
-                            pl.col("true_positives_rolling") + pl.col("false_negatives_rolling")
+                            pl.col('true_positives_rolling') + pl.col('false_negatives_rolling')
                     )
-            ).alias("recall_rolling")
+            ).alias('recall_rolling')
         ]).with_columns([
             (
-                    2 * pl.col("precision_rolling") * pl.col("recall_rolling") /
+                    2 * pl.col('precision_rolling') * pl.col('recall_rolling') /
                     (
-                            pl.col("precision_rolling") + pl.col("recall_rolling")
+                            pl.col('precision_rolling') + pl.col('recall_rolling')
                     )
-            ).alias("f1_score_rolling")
+            ).alias('f1_score_rolling')
         ])
 
         def team_performance(df):
             return pl.DataFrame({
-                "true_positives": df.filter(pl.col("is_home_win") & (pl.col("is_predicted_home_win"))).shape[0],
-                "true_negatives": df.filter(~pl.col("is_home_win") & (~pl.col("is_predicted_home_win"))).shape[0],
-                "false_positives": df.filter(~pl.col("is_home_win") & (pl.col("is_predicted_home_win"))).shape[0],
-                "false_negatives": df.filter(pl.col("is_home_win") & (~pl.col("is_predicted_home_win"))).shape[0]
+                'true_positives': df.filter(pl.col('is_home_win') & (pl.col('is_predicted_home_win'))).shape[0],
+                'true_negatives': df.filter(~pl.col('is_home_win') & (~pl.col('is_predicted_home_win'))).shape[0],
+                'false_positives': df.filter(~pl.col('is_home_win') & (pl.col('is_predicted_home_win'))).shape[0],
+                'false_negatives': df.filter(pl.col('is_home_win') & (~pl.col('is_predicted_home_win'))).shape[0]
             })
 
-        team_ids = list(set(prediction_df["home_team_id"]))
+        team_ids = list(set(prediction_df['home_team_id']))
         performance_by_team = [
             team_performance(
-                prediction_df.filter((pl.col("home_team_id") == team_id) | (pl.col("away_team_id") == team_id))
+                prediction_df.filter((pl.col('home_team_id') == team_id) | (pl.col('away_team_id') == team_id))
             ) for team_id in team_ids
         ]
         performance_by_team_df = pl.concat(performance_by_team).with_columns([
-            pl.Series("team_id", team_ids)
+            pl.Series('team_id', team_ids)
         ]).with_columns([
             (
                 (
-                    pl.col("true_positives") + pl.col("true_negatives")
+                    pl.col('true_positives') + pl.col('true_negatives')
                 ) /
                 (
-                    pl.col("true_positives") + pl.col("true_negatives") +
-                    pl.col("false_positives") + pl.col("false_negatives")
+                    pl.col('true_positives') + pl.col('true_negatives') +
+                    pl.col('false_positives') + pl.col('false_negatives')
                 )
-            ).alias("accuracy"),
+            ).alias('accuracy'),
             (
-                pl.col("true_positives") /
+                pl.col('true_positives') /
                 (
-                    pl.col("true_positives") + pl.col("false_positives")
+                    pl.col('true_positives') + pl.col('false_positives')
                 )
-            ).alias("precision"),
+            ).alias('precision'),
             (
-                pl.col("true_positives") /
+                pl.col('true_positives') /
                 (
-                    pl.col("true_positives") + pl.col("false_negatives")
+                    pl.col('true_positives') + pl.col('false_negatives')
                 )
-            ).alias("recall")
+            ).alias('recall')
         ]).with_columns([
             (
-                2 * pl.col("precision") * pl.col("recall") /
+                2 * pl.col('precision') * pl.col('recall') /
                 (
-                    pl.col("precision") + pl.col("recall")
+                    pl.col('precision') + pl.col('recall')
                 )
-            ).alias("f1_score")
+            ).alias('f1_score')
         ])
 
         self.performance = {
-            "over_time": performance_df,
-            "by_team": performance_by_team_df
+            'over_time': performance_df,
+            'by_team': performance_by_team_df
         }

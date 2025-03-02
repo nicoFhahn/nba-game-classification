@@ -1,72 +1,119 @@
 import json
-import os
+from datetime import timedelta, datetime
+
 import polars as pl
-from datetime import date, timedelta, datetime
+from supabase import create_client
+
 from data_wrangling import load_season, record_current_season
 from elo_rating import elo_season
-from data_collection import season
-
-files = os.listdir('data')
-schedule_files = [file for file in files if file.startswith('schedule')]
-latest_schedule_file = max(schedule_files, key=lambda x: int(x.split('_')[-1].split('.')[0]))
-q = pl.scan_parquet(
-    os.path.join('data', latest_schedule_file)
-).select(pl.col('date')).max()
-with open('data/season_dates.json', 'r') as f:
-    season_dates = json.loads(f.read())
-newest_date = q.collect()['date'][0]
-if (date.today().year != latest_schedule_file.split('_')[-1].split('.')[0]) and date.today().month >= 9:
-    season(
-        start_date=date.today(),
-        end_date=date.today() + timedelta(days=3),
-        file_year=date.today().year,
-        folder='data'
-    )
-else:
-    season(
-        start_date=newest_date,
-        end_date=newest_date + timedelta(days=3),
-        file_year=date.today().year - 1,
-        folder='data'
-    )
-season_2024 = load_season(
-    ['game_list_2023.parquet', 'game_list_2024.parquet'],
-    ['schedule_2023.parquet', 'schedule_2024.parquet'],
-    'data',
-    datetime.strptime(season_dates['2024']['all_star'], '%Y-%m-%d').date(),
-    datetime.strptime(season_dates['2024']['play_in_start'], '%Y-%m-%d').date(),
-    datetime.strptime(season_dates['2024']['play_in_end'], '%Y-%m-%d').date()
+from data_collection import (
+    season,
+    collect_season_statistics,
+    collect_season_filtered_table,
+    collect_all_data
 )
-season_2024.write_parquet('data/season_2024.parquet')
+
+with open('streamlit/credentials.json', 'r') as f:
+    creds = json.loads(f.read())
+    connection = create_client(creds['postgres']['project_url'], creds['postgres']['api_key'])
+
+season_dates = pl.DataFrame(connection.table('season').select('*').execute().data).with_columns([
+    pl.col('all_star_date').str.to_date(),
+    pl.col('play_in_start').str.to_date(),
+    pl.col('play_in_end').str.to_date()
+])
+res = connection.table('schedule').select('date, season_id').order('date', desc=True).limit(1).execute().data[0]
+newest_date = datetime.strptime(res['date'], '%Y-%m-%d').date()
+season_id = res['season_id']
+season(
+    start_date=newest_date,
+    end_date=newest_date + timedelta(days=3),
+    connection=connection,
+    season_id=season_id
+)
+
+season_2024 = load_season(
+    season_dates.filter(pl.col('season_id') == season_id)['all_star_date'][0],
+    season_dates.filter(pl.col('season_id') == season_id)['play_in_start'][0],
+    season_dates.filter(pl.col('season_id') == season_id)['play_in_end'][0],
+    connection=connection,
+    season_id=season_id
+)
+previous_df, recent_games_df, remainder_df, season_df = collect_season_statistics(season_id, connection)
+new_data_1 = season_2024.filter(~pl.col('game_id').is_in(previous_df['game_id'])).select(previous_df.columns).to_dicts()
+new_data_2 = season_2024.filter(~pl.col('game_id').is_in(recent_games_df['game_id'])).select(recent_games_df.columns).to_dicts()
+new_data_3 = season_2024.filter(~pl.col('game_id').is_in(remainder_df['game_id'])).select(remainder_df.columns).to_dicts()
+new_data_4 = season_2024.filter(~pl.col('game_id').is_in(season_df['game_id'])).select(season_df.columns).to_dicts()
+if len(new_data_1) > 0:
+    response = (
+        connection.table('statistics_previous').insert(
+            new_data_1
+        ).execute()
+    )
+if len(new_data_2) > 0:
+    response = (
+        connection.table('statistics_recent_games').insert(
+            new_data_2
+        ).execute()
+    )
+if len(new_data_3) > 0:
+    response = (
+        connection.table('statistics_remainder').insert(
+            new_data_3
+        ).execute()
+    )
+if len(new_data_4) > 0:
+    response = (
+        connection.table('statistics_season').insert(
+            new_data_4
+        ).execute()
+    )
 h2h_current_year = load_season(
-    ['game_list_2023.parquet', 'game_list_2024.parquet'],
-    ['schedule_2023.parquet', 'schedule_2024.parquet'],
-    'data',
-    datetime.strptime(season_dates['2024']['all_star'], '%Y-%m-%d').date(),
-    datetime.strptime(season_dates['2024']['play_in_start'], '%Y-%m-%d').date(),
-    datetime.strptime(season_dates['2024']['play_in_end'], '%Y-%m-%d').date(),
+    season_dates.filter(pl.col('season_id') == season_id)['all_star_date'][0],
+    season_dates.filter(pl.col('season_id') == season_id)['play_in_start'][0],
+    season_dates.filter(pl.col('season_id') == season_id)['play_in_end'][0],
+    connection=connection,
+    season_id=season_id,
     return_h2h=True
 )
-h2h_current_year.write_parquet('data/h2h_2024.parquet')
+h2h_supabase = collect_season_filtered_table(season_id, 'h2h', connection)
+new_data_5  = h2h_current_year.filter(~pl.col('game_id').is_in(h2h_supabase['game_id'])).to_dicts()
+if len(new_data_5) > 0:
+    response = (
+        connection.table('h2h').insert(
+            new_data_5
+        ).execute()
+    )
 rec_current_year = record_current_season(
-    datetime.strptime(season_dates['2024']['all_star'], '%Y-%m-%d').date(),
-    datetime.strptime(season_dates['2024']['play_in_start'], '%Y-%m-%d').date(),
-    datetime.strptime(season_dates['2024']['play_in_end'], '%Y-%m-%d').date(),
-    'schedule_2024.parquet',
-    'game_list_2024.parquet',
-    'data'
-)
-rec_current_year.write_parquet('data/record_2024.parquet')
+    season_dates.filter(pl.col('season_id') == season_id)['all_star_date'][0],
+    season_dates.filter(pl.col('season_id') == season_id)['play_in_start'][0],
+    season_dates.filter(pl.col('season_id') == season_id)['play_in_end'][0],
+    connection=connection,
+    season_id=season_id,
+).drop_nulls()
+rec_current_year_supabase = collect_season_filtered_table(season_id, 'record', connection)
+new_data_6  = rec_current_year.filter(~pl.col('game_id').is_in(rec_current_year_supabase['game_id'])).to_dicts()
+if len(new_data_6) > 0:
+    response = (
+        connection.table('record').insert(
+            new_data_6
+        ).execute()
+    )
+df_list = []
+for s_id in season_dates['season_id']:
+    if s_id == season_id:
+        df_list.append(rec_current_year)
+    else:
+        df_list.append(
+            collect_season_filtered_table(s_id, 'record', connection)
+        )
 df_list = [
-    record_current_season(
-        datetime.strptime(season_dates[key]['all_star'], '%Y-%m-%d').date(),
-        datetime.strptime(season_dates[key]['play_in_start'], '%Y-%m-%d').date(),
-        datetime.strptime(season_dates[key]['play_in_end'], '%Y-%m-%d').date(),
-        f'schedule_{key}.parquet',
-        f'game_list_{key}.parquet',
-        'data'
-    ).drop_nulls('points_home') for key in season_dates.keys()
+    rec_current_year if s_id == season_id else collect_season_filtered_table(s_id, 'record', connection)
+    for s_id in season_dates['season_id']
 ]
+schedule_df = collect_all_data('schedule', connection)
+df_list = [df.join(schedule_df, on='game_id').drop('season_id') for df in df_list]
+df_list[-1] = df_list[-1][df_list[0].columns]
 elo_df_list = []
 for i in range(len(df_list)):
     if i == 0:
@@ -78,37 +125,15 @@ for i in range(len(df_list)):
             elo_season(df_list[i], elo_df_list[i - 1])
         )
 elo_df = pl.concat(elo_df_list)
-current_elo = elo_df.sort("date").group_by("team_id").tail(1).select(["team_id", "elo_after"])
-elo_df.write_parquet('data/elo_score.parquet')
-
-season_df = pl.concat([
-    pl.read_parquet('data/season_2021.parquet'),
-    pl.read_parquet('data/season_2022.parquet'),
-    pl.read_parquet('data/season_2023.parquet'),
-    pl.read_parquet('data/season_2024.parquet')
-])
-season_df = season_df.join(
-    elo_df.drop(['elo_after', 'date']),
-    left_on=['game_id', 'home_team_id'],
-    right_on=['game_id', 'team_id'],
+elo_df_supabase = collect_all_data('elo', connection)
+new_data_7 = elo_df.join(
+    elo_df_supabase[['game_id', 'team_id']],
+    on=['game_id', 'team_id'],
     how='left'
-).join(
-    elo_df.drop(['elo_after', 'date']),
-    left_on=['game_id', 'away_team_id'],
-    right_on=['game_id', 'team_id'],
-    how='left'
-).join(
-    current_elo,
-    left_on="home_team_id",
-    right_on="team_id"
-).join(
-    current_elo,
-    left_on="away_team_id",
-    right_on="team_id"
-).with_columns([
-    pl.coalesce(pl.col("elo_before"), pl.col("elo_after")).alias("elo_home_team"),
-    pl.coalesce(pl.col("elo_before_right"), pl.col("elo_after_right")).alias("elo_away_team")
-]).drop([
-    "elo_before", "elo_before_right", "elo_after", "elo_after_right"
-])
-season_df.write_parquet('data/season_df.parquet')
+).filter(pl.col('game_id').is_null()).to_dicts()
+if len(new_data_7) > 0:
+    response = (
+        connection.table('elo').insert(
+            new_data_7
+        ).execute()
+    )
