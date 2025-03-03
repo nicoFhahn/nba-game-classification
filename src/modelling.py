@@ -1,10 +1,14 @@
 import os
 import json
 import gc
-import glob
+import fnmatch
+import sys
+import warnings
+import pathlib
 from datetime import date, timedelta, datetime
 from math import floor, ceil
 from functools import partial
+from google.cloud import storage
 
 import numpy as np
 import polars as pl
@@ -15,20 +19,22 @@ import shap
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
 from sklearn.model_selection import TimeSeriesSplit
 from supabase import Client
-
+sys.path.append(os.path.join(os.path.abspath(__file__), '..'))
 from data_collection import collect_all_data
-
+warnings.filterwarnings("ignore")
 
 class lgbm_model():
     def __init__(
             self,
             connection: Client,
-            model_folder: str = 'models',
-            random_state: int = 7918
+            bucket: storage.Bucket,
+            random_state: int = 7918,
+            data_origin: str = "google"
     ):
         self.connection = connection
-        self.model_folder = model_folder
         self.random_state = random_state
+        self.bucket = bucket
+        self.data_origin = data_origin
         self.load_data()
 
     def accuracy_metric(y_true, y_pred):
@@ -41,74 +47,85 @@ class lgbm_model():
             self,
             train_size: float = 0.85,
             remove_size: float = 0.05
-    ) -> pl.DataFrame:
+    ):
         '''
 
         :param train_size:
         :param remove_size:
         :return:
         '''
-        df_1 = collect_all_data(
-            'schedule',
-            self.connection
-        )
-        df_2 = collect_all_data(
-            'elo',
-            self.connection
-        ).drop('id')
-        df_3 = collect_all_data(
-            'statistics_previous',
-            self.connection
-        )
-        df_4 = collect_all_data(
-            'statistics_recent_games',
-            self.connection
-        )
-        df_5 = collect_all_data(
-            'statistics_season',
-            self.connection
-        )
-        df_6 = collect_all_data(
-            'statistics_remainder',
-            self.connection
-        )
-        current_elo = df_2.with_columns(pl.col('date').str.to_date()).group_by('team_id').tail(1).select(
-            ['team_id', 'elo_after'])
-        temp_df = df_1.join(
-            df_3, on='game_id'
-        ).join(
-            df_4, on='game_id'
-        ).join(
-            df_5, on='game_id'
-        ).join(
-            df_6, on='game_id'
-        ).join(
-            df_2.drop(['elo_after', 'date']),
-            left_on=['game_id', 'home_team_id'],
-            right_on=['game_id', 'team_id'],
-            how='left'
-        ).join(
-            df_2.drop(['elo_after', 'date']),
-            left_on=['game_id', 'away_team_id'],
-            right_on=['game_id', 'team_id'],
-            how='left'
-        ).join(
-            current_elo,
-            left_on='home_team_id',
-            right_on='team_id'
-        ).join(
-            current_elo,
-            left_on='away_team_id',
-            right_on='team_id'
-        ).with_columns([
-            pl.coalesce(pl.col('elo_before'), pl.col('elo_after')).alias('elo_home_team'),
-            pl.coalesce(pl.col('elo_before_right'), pl.col('elo_after_right')).alias('elo_away_team'),
-            pl.col('date').str.to_date()
-        ]).drop([
-            'elo_before', 'elo_before_right', 'elo_after', 'elo_after_right', 'season_id'
-        ])
-        self.full_data = temp_df.sort('date')
+        if self.data_origin == 'google':
+            blob = self.bucket.blob('final_data.parquet')
+            blob.download_to_filename('final_data.parquet')
+            self.full_data = pl.read_parquet('final_data.parquet')
+            pathlib.Path.unlink('final_data.parquet')
+        elif self.data_origin == 'supabase':
+            df_1 = collect_all_data(
+                'schedule',
+                self.connection
+            )
+            df_2 = collect_all_data(
+                'elo',
+                self.connection
+            ).drop('id')
+            df_3 = collect_all_data(
+                'statistics_previous',
+                self.connection
+            )
+            df_4 = collect_all_data(
+                'statistics_recent_games',
+                self.connection
+            )
+            df_5 = collect_all_data(
+                'statistics_season',
+                self.connection
+            )
+            df_6 = collect_all_data(
+                'statistics_remainder',
+                self.connection
+            )
+            current_elo = df_2.with_columns(pl.col('date').str.to_date()).group_by('team_id').tail(1).select(
+                ['team_id', 'elo_after'])
+            temp_df = df_1.join(
+                df_3, on='game_id'
+            ).join(
+                df_4, on='game_id'
+            ).join(
+                df_5, on='game_id'
+            ).join(
+                df_6, on='game_id'
+            ).join(
+                df_2.drop(['elo_after', 'date']),
+                left_on=['game_id', 'home_team_id'],
+                right_on=['game_id', 'team_id'],
+                how='left'
+            ).join(
+                df_2.drop(['elo_after', 'date']),
+                left_on=['game_id', 'away_team_id'],
+                right_on=['game_id', 'team_id'],
+                how='left'
+            ).join(
+                current_elo,
+                left_on='home_team_id',
+                right_on='team_id'
+            ).join(
+                current_elo,
+                left_on='away_team_id',
+                right_on='team_id'
+            ).with_columns([
+                pl.coalesce(pl.col('elo_before'), pl.col('elo_after')).alias('elo_home_team'),
+                pl.coalesce(pl.col('elo_before_right'), pl.col('elo_after_right')).alias('elo_away_team'),
+                pl.col('date').str.to_date()
+            ]).drop([
+                'elo_before', 'elo_before_right', 'elo_after', 'elo_after_right', 'season_id'
+            ])
+            self.full_data = temp_df.sort('date')
+            temp_df.write_parquet('final_data.parquet')
+            blob = self.bucket.blob('final_data.parquet')
+            blob.upload_from_filename('final_data.parquet')
+            pathlib.Path.unlink('final_data.parquet')
         start_date = date.today().replace(day=1)
+        self.full_data = self.full_data.sort('date')
         train_start = self.full_data[
             :floor(
                 self.full_data.filter(pl.col('date') < start_date).shape[0] * remove_size
@@ -187,129 +204,159 @@ class lgbm_model():
         :return:
         '''
         split = TimeSeriesSplit(n_folds)
-        filename = f'{self.model_folder}/lgbm_evaluation_{self.training_timestamps['val_end'].strftime('%B')}_{self.training_timestamps['val_end'].year}2.json'.lower()
-        if filename in os.listdir(self.model_folder):
+        filename = f'lgbm_evaluation_{self.training_timestamps['val_end'].strftime('%B')}_{self.training_timestamps['val_end'].year}.json'.lower()
+        last_train_date = (self.training_timestamps['val_start'] + timedelta(days=-1)).isoformat()
+        if filename in [b.name for b in self.bucket.list_blobs()]:
+            blob = self.bucket.blob(filename)
+            blob.download_to_filename(filename)
             with open(filename, 'r') as f:
                 d = json.loads(f.read())
-                precision_list = d['train']['precision']
-                recall_list = d['train']['recall']
-                accuracy_list = d['train']['accuracy']
-                f1_list = d['train']['f1']
-                feature_list_1 = d['features']['trained_on']
+                precision = d['performance']['precision']
+                recall = d['performance']['recall']
+                accuracy = d['performance']['accuracy']
+                f1 = d['performance']['f1']
                 feature_list_2 = d['features']['next_trained_on']
-                X_train = self.X['train'][feature_list_2[-1]]
+                X_train = self.X['train'][feature_list_2]
+                accuracy_features = d['features']['accuracy']
+                precision_features = d['features']['precision']
+                recall_features = d['features']['recall']
+                f1_features = d['features']['f1']
+                training_complete = X_train.shape[1] == 1
         else:
-            precision_list = []
-            recall_list = []
-            accuracy_list = []
-            f1_list = []
-            feature_list_1 = []
-            feature_list_2 = []
+            blob = self.bucket.blob(filename)
+            precision = 0
+            recall = 0
+            accuracy = 0
+            f1 = 0
             X_train = self.X['train']
+            accuracy_features = []
+            precision_features = []
+            recall_features = []
+            f1_features = []
+            training_complete = False
         y_train = self.y['train']
-        while X_train.shape[0] > 1:
-            feature_list_1.append(X_train.columns)
-            if X_train.shape[1] % 50 == 0 or X_train.shape[1] < 5:
-                print(f'Running Feature Selection for {X_train.shape[1]} features.')
-            importance_list = []
-            temp_precision_list = []
-            temp_recall_list = []
-            temp_accuracy_list = []
-            temp_f1_list = []
-            for train_idx, test_idx in split.split(X_train, y_train):
-                # Split the data into train and test sets
-                temp_X_train, temp_X_test = X_train[train_idx], X_train[test_idx]
-                temp_y_train, temp_y_test = y_train[train_idx], y_train[test_idx]
-                sample_weights = temp_X_train.with_columns([
-                    (
-                            1 + (
-                            pl.col('date') - pl.col('date').min()
-                    ).dt.total_days() / (
+        if not training_complete:
+            while X_train.shape[1] > 1:
+                feature_list_1 = X_train.columns
+                if X_train.shape[1] % 50 == 0 or X_train.shape[1] < 5:
+                    print(f'Running Feature Selection for {X_train.shape[1]} features.')
+                importance_list = []
+                temp_precision_list = []
+                temp_recall_list = []
+                temp_accuracy_list = []
+                temp_f1_list = []
+                for train_idx, test_idx in split.split(X_train, y_train):
+                    # Split the data into train and test sets
+                    temp_X_train, temp_X_test = X_train[train_idx], X_train[test_idx]
+                    temp_y_train, temp_y_test = y_train[train_idx], y_train[test_idx]
+                    sample_weights = temp_X_train.with_columns([
                         (
-                                pl.col('date').max() - pl.col('date').min()
-                        ).dt.total_days())
-                    ).alias('sample_weight')
-                ]).select(pl.col('sample_weight')).to_numpy().ravel()
-                temp_X_train = temp_X_train.drop('date')
-                temp_X_test = temp_X_test.drop('date')
-                temp_X_train = temp_X_train.to_numpy()
-                temp_X_test = temp_X_test.to_numpy()
-                temp_y_train = temp_y_train.to_numpy().ravel()
-                temp_y_test = temp_y_test.to_numpy().ravel()
-                dtrain = lgbm.Dataset(
-                    data=temp_X_train,
-                    label=temp_y_train
-                )
-                mod = lgbm.train(
-                    params={
-                        'objective': 'binary',
-                        'metric': None,
-                        'first_metric_only': True,
-                        'verbose': -1,
-                        'random_state': self.random_state,
-                        'sample_weights': sample_weights
-                    },
-                    train_set=dtrain,
-                    feval=self.accuracy_metric
-                )
-                # Calculate SHAP values on the test set for the current fold
-                if use_shapley:
-                    explainer = shap.Explainer(mod)
-                    shap_values = explainer.shap_values(temp_X_test)
-                    importance_list.append(shap_values)
-                else:
-                    # Store the SHAP values for this fold
-                    importance_list.append(mod.feature_importances_)
-                temp_precision_list.append(
-                    precision_score(
-                        temp_y_test, mod.predict(temp_X_test) > 0.5
+                                1 + (
+                                pl.col('date') - pl.col('date').min()
+                        ).dt.total_days() / (
+                            (
+                                    pl.col('date').max() - pl.col('date').min()
+                            ).dt.total_days())
+                        ).alias('sample_weight')
+                    ]).select(pl.col('sample_weight')).to_numpy().ravel()
+                    temp_X_train = temp_X_train.drop('date')
+                    temp_X_test = temp_X_test.drop('date')
+                    temp_X_train = temp_X_train.to_numpy()
+                    temp_X_test = temp_X_test.to_numpy()
+                    temp_y_train = temp_y_train.to_numpy().ravel()
+                    temp_y_test = temp_y_test.to_numpy().ravel()
+                    dtrain = lgbm.Dataset(
+                        data=temp_X_train,
+                        label=temp_y_train
                     )
-                )
-                temp_recall_list.append(
-                    recall_score(
-                        temp_y_test, mod.predict(temp_X_test) > 0.5
+                    mod = lgbm.train(
+                        params={
+                            'objective': 'binary',
+                            'metric': None,
+                            'first_metric_only': True,
+                            'verbose': -1,
+                            'random_state': self.random_state,
+                            'sample_weights': sample_weights
+                        },
+                        train_set=dtrain,
+                        feval=self.accuracy_metric
                     )
-                )
-                temp_accuracy_list.append(
-                    accuracy_score(
-                        temp_y_test, mod.predict(temp_X_test) > 0.5
+                    # Calculate SHAP values on the test set for the current fold
+                    if use_shapley:
+                        explainer = shap.Explainer(mod)
+                        shap_values = explainer.shap_values(temp_X_test)
+                        importance_list.append(shap_values)
+                    else:
+                        # Store the SHAP values for this fold
+                        importance_list.append(mod.feature_importances_)
+                    temp_precision_list.append(
+                        precision_score(
+                            temp_y_test, mod.predict(temp_X_test) > 0.5
+                        )
                     )
-                )
-                temp_f1_list.append(
-                    f1_score(
-                        temp_y_test, mod.predict(temp_X_test) > 0.5
+                    temp_recall_list.append(
+                        recall_score(
+                            temp_y_test, mod.predict(temp_X_test) > 0.5
+                        )
                     )
-                )
+                    temp_accuracy_list.append(
+                        accuracy_score(
+                            temp_y_test, mod.predict(temp_X_test) > 0.5
+                        )
+                    )
+                    temp_f1_list.append(
+                        f1_score(
+                            temp_y_test, mod.predict(temp_X_test) > 0.5
+                        )
+                    )
 
-            abs_importance_values = np.absolute(np.mean(np.vstack(importance_list), axis=0))
-            drop_cols = np.array(X_train.drop('date').columns)[
-                np.where(abs_importance_values == abs_importance_values.min())
-            ]
-            precision_list.append(np.mean(temp_precision_list))
-            recall_list.append(np.mean(temp_recall_list))
-            accuracy_list.append(np.mean(temp_accuracy_list))
-            f1_list.append(np.mean(temp_f1_list))
-            X_train = X_train.drop(drop_cols)
-            feature_list_2.append(X_train.columns)
+                abs_importance_values = np.absolute(np.mean(np.vstack(importance_list), axis=0))
+                drop_cols = np.array(X_train.drop('date').columns)[
+                    np.where(abs_importance_values == abs_importance_values.min())
+                ]
+                cv_accuracy = np.mean(temp_accuracy_list)
+                if cv_accuracy > accuracy:
+                    accuracy = cv_accuracy
+                    accuracy_features = X_train.columns
+                cv_precision = np.mean(temp_precision_list)
+                if cv_precision > precision:
+                    precision = cv_precision
+                    precision_features = X_train.columns
+                cv_recall = np.mean(temp_recall_list)
+                if cv_recall > accuracy:
+                    recall = cv_recall
+                    recall_features = X_train.columns
+                cv_f1 = np.mean(temp_f1_list)
+                if cv_f1 > f1:
+                    f1 = cv_f1
+                    f1_features = X_train.columns
+                X_train = X_train.drop(drop_cols)
+                feature_list_2 = X_train.columns
+                del mod
+                if use_shapley:
+                    del explainer
+                gc.collect()
             eval_dict = {
                 'performance': {
-                    'precision': precision_list,
-                    'recall': recall_list,
-                    'accuracy': accuracy_list,
-                    'f1': f1_list
+                    'precision': precision,
+                    'recall': recall,
+                    'accuracy': accuracy,
+                    'f1': f1
                 },
                 'features': {
                     'trained_on': feature_list_1,
-                    'next_trained_on': feature_list_2
+                    'next_trained_on': feature_list_2,
+                    'accuracy': accuracy_features,
+                    'precision': precision_features,
+                    'recall': recall_features,
+                    'f1': f1_features
                 },
-                'last_train_date': (self.training_timestamps['val_start'] + timedelta(days=-1)).isoformat()
+                'last_train_date': last_train_date
             }
             with open(filename, 'w') as f:
                 json.dump(eval_dict, f)
-            del mod
-            if use_shapley:
-                del explainer
-            gc.collect()
+            blob.upload_from_filename(filename)
+            pathlib.Path.unlink(filename)
         print('Feature selection completed.')
 
     def objective_lgbm(
@@ -365,7 +412,7 @@ class lgbm_model():
             random_state=self.random_state
         )
         study.optimize(obj, n_trials=200)
-        filename = f'{self.model_folder}/params_{self.training_timestamps['val_end'].strftime('%B')}_{self.training_timestamps['val_end'].year}.json'.lower()
+        filename = f'params_{self.training_timestamps['val_end'].strftime('%B')}_{self.training_timestamps['val_end'].year}.json'.lower()
         best_params = study.best_params
         best_params['verbose'] = -1
         best_params['metric'] = None
@@ -374,22 +421,25 @@ class lgbm_model():
         best_params['first_metric_only'] = True
         with open(filename, 'w') as f:
             json.dump(best_params, f)
+        blob = self.bucket.blob(filename)
+        blob.upload_from_filename(filename)
+        pathlib.Path.unlink(filename)
         print('Hyperparameter tuning completed.')
 
     def load_best_features(self):
-        eval_files = glob.glob(f'{self.model_folder}/lgbm*.json')
-        with open(max(eval_files, key=os.path.getmtime), 'r') as f:
+        filename = download_newest_matching_json_file("lgbm", "", "lgbm*.json")
+        with open(filename, 'r') as f:
             evaluation = json.loads(f.read())
-        best_features = evaluation['features']['trained_on'][
-            evaluation['performance']['accuracy'].index(max(evaluation['performance']['accuracy']))
-        ]
+        pathlib.Path.unlink(filename)
+        best_features = evaluation['features']['accuracy']
         last_train_date = datetime.strptime(evaluation['last_train_date'], '%Y-%m-%d').date()
         return best_features, last_train_date
 
     def load_best_params(self):
-        param_files = glob.glob(f'{self.model_folder}/params*.json')
-        with open(max(param_files, key=os.path.getmtime), 'r') as f:
+        filename = download_newest_matching_json_file("lgbm", "", "params*.json")
+        with open(filename, 'r') as f:
             params = json.loads(f.read())
+        pathlib.Path.unlink(filename)
         return params
 
     def train_final_model(self):
@@ -422,12 +472,19 @@ class lgbm_model():
             feval=self.accuracy_metric
         )
         self.model = mod
-        joblib.dump(mod, f'{self.model_folder}/lgbm_model.pkl')
+        filename = 'lgbm_model.pkl'
+        joblib.dump(mod, filename)
+        blob = self.bucket.blob(filename)
+        blob.upload_from_filename(filename)
+        pathlib.Path.unlink(filename)
         print('Final model trained and saved')
 
     def load_model(self):
-        pkl_files = glob.glob(f'{self.model_folder}/*.pkl')
-        mod = joblib.load(max(pkl_files, key=os.path.getmtime))
+        filename = 'lgbm_model.pkl'
+        blob = self.bucket.blob(filename)
+        blob.download_to_filename(filename)
+        mod = joblib.load(filename)
+        pathlib.Path.unlink(filename)
         self.model = mod
 
     def predict(self):
@@ -438,12 +495,13 @@ class lgbm_model():
             on='game_id',
             how='inner'
         )['date'].max()
-        X_new = self.full_data.filter(
-            (pl.col('date') > cutoff_date) &
-            (pl.col('is_home_win').is_not_null())
-        ).to_dummies([
+        X_new = self.full_data.to_dummies([
             'game_type', 'month', 'weekday'
-        ])
+        ]).filter(
+            (pl.col('date') >= cutoff_date) &
+            (pl.col('is_home_win').is_not_null()) &
+            (~pl.col('game_id').is_in(previous_predictions['game_id']))
+        )
         game_ids = X_new['game_id']
         X_new = X_new.select(best_features).drop('date')
         predictions = self.model.predict(X_new.to_numpy())
@@ -452,6 +510,7 @@ class lgbm_model():
             'probability': predictions,
             'is_home_win': predictions >= 0.5
         })
+        print(f"{prediction_df.shape[0]} predictions added")
         response = self.connection.table('predictions').insert(prediction_df.to_dicts()).execute()
 
     def evaluate_performance(self):
@@ -592,3 +651,36 @@ class lgbm_model():
             'over_time': performance_df,
             'by_team': performance_by_team_df
         }
+
+
+def download_newest_matching_json_file(bucket_name, destination_folder, pattern):
+    # Initialize a client
+    client = storage.Client()
+
+    # Get the bucket
+    bucket = client.get_bucket(bucket_name)
+
+    # List all blobs in the bucket
+    blobs = bucket.list_blobs()
+
+    # Filter blobs matching the pattern and find the newest one
+    newest_blob = None
+    newest_time = None
+
+    for blob in blobs:
+        if fnmatch.fnmatch(blob.name, pattern):
+            blob_time = blob.updated
+            if newest_time is None or blob_time > newest_time:
+                newest_blob = blob
+                newest_time = blob_time
+
+    if newest_blob:
+        # Define the local path to save the file
+        local_file_path = os.path.join(destination_folder, os.path.basename(newest_blob.name))
+
+        # Download the newest blob to the local destination
+        newest_blob.download_to_filename(local_file_path)
+        print(f"Downloaded newest matching file: {newest_blob.name} to {local_file_path}")
+        return local_file_path
+    else:
+        print(f"No files matching the pattern '{pattern}' found in the bucket.")

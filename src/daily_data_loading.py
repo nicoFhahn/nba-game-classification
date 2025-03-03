@@ -1,11 +1,14 @@
+import os
 import json
 from datetime import timedelta, datetime
 
 import polars as pl
 from supabase import create_client
+from google.cloud import storage
 
 from data_wrangling import load_season, record_current_season
 from elo_rating import elo_season
+from modelling import lgbm_model
 from data_collection import (
     season,
     collect_season_statistics,
@@ -13,9 +16,11 @@ from data_collection import (
     collect_all_data
 )
 
-with open('streamlit/credentials.json', 'r') as f:
+with open(os.path.join(
+    os.path.dirname(__file__), '..', 'streamlit', 'credentials', 'credentials.json'
+), 'r') as f:
     creds = json.loads(f.read())
-    connection = create_client(creds['postgres']['project_url'], creds['postgres']['api_key'])
+connection = create_client(creds['postgres']['project_url'], creds['postgres']['api_key'])
 
 season_dates = pl.DataFrame(connection.table('season').select('*').execute().data).with_columns([
     pl.col('all_star_date').str.to_date(),
@@ -25,13 +30,14 @@ season_dates = pl.DataFrame(connection.table('season').select('*').execute().dat
 res = connection.table('schedule').select('date, season_id').order('date', desc=True).limit(1).execute().data[0]
 newest_date = datetime.strptime(res['date'], '%Y-%m-%d').date()
 season_id = res['season_id']
+print('Collecting Schedule and Boxscores')
 season(
     start_date=newest_date,
     end_date=newest_date + timedelta(days=3),
     connection=connection,
     season_id=season_id
 )
-
+print('Collecting Season Statistics')
 season_2024 = load_season(
     season_dates.filter(pl.col('season_id') == season_id)['all_star_date'][0],
     season_dates.filter(pl.col('season_id') == season_id)['play_in_start'][0],
@@ -40,32 +46,74 @@ season_2024 = load_season(
     season_id=season_id
 )
 previous_df, recent_games_df, remainder_df, season_df = collect_season_statistics(season_id, connection)
-new_data_1 = season_2024.filter(~pl.col('game_id').is_in(previous_df['game_id'])).select(previous_df.columns).to_dicts()
-new_data_2 = season_2024.filter(~pl.col('game_id').is_in(recent_games_df['game_id'])).select(recent_games_df.columns).to_dicts()
-new_data_3 = season_2024.filter(~pl.col('game_id').is_in(remainder_df['game_id'])).select(remainder_df.columns).to_dicts()
-new_data_4 = season_2024.filter(~pl.col('game_id').is_in(season_df['game_id'])).select(season_df.columns).to_dicts()
-if len(new_data_1) > 0:
+new_data_1 = season_2024.filter(~pl.col('game_id').is_in(previous_df['game_id'])).select(previous_df.columns)
+new_data_2 = season_2024.filter(~pl.col('game_id').is_in(recent_games_df['game_id'])).select(recent_games_df.columns)
+new_data_3 = season_2024.filter(~pl.col('game_id').is_in(remainder_df['game_id'])).select(remainder_df.columns)
+new_data_4 = season_2024.filter(~pl.col('game_id').is_in(season_df['game_id'])).select(season_df.columns)
+if new_data_1.shape[0] > 0:
     response = (
         connection.table('statistics_previous').insert(
-            new_data_1
+            new_data_1.to_dicts()
         ).execute()
     )
-if len(new_data_2) > 0:
+if new_data_2.shape[0] > 0:
     response = (
         connection.table('statistics_recent_games').insert(
-            new_data_2
+            new_data_2.to_dicts()
         ).execute()
     )
-if len(new_data_3) > 0:
+if new_data_3.shape[0] > 0:
     response = (
         connection.table('statistics_remainder').insert(
-            new_data_3
+            new_data_3.to_dicts()
         ).execute()
     )
-if len(new_data_4) > 0:
+if new_data_4.shape[0] > 0:
     response = (
         connection.table('statistics_season').insert(
-            new_data_4
+            new_data_4.to_dicts()
+        ).execute()
+    )
+update_date = remainder_df[["game_id", "is_home_win"]].join(
+    season_2024[["game_id", "date", "is_home_win"]],
+    on="game_id"
+).filter(
+    pl.col("is_home_win").is_null() & (pl.col("is_home_win_right").is_not_null())
+)["date"].min()
+update_data_1 = season_2024.filter(
+    (pl.col("date") >= update_date) & (~pl.col("game_id").is_in(new_data_1["game_id"]))
+).drop_nulls("fieldGoalsMade_previous_game_home_team").select(previous_df.columns)
+update_data_2 = season_2024.filter(
+    (pl.col("date") >= update_date) & (~pl.col("game_id").is_in(new_data_2["game_id"]))
+).select(recent_games_df.columns)
+update_data_3 = season_2024.filter(
+    (pl.col("date") >= update_date) & (~pl.col("game_id").is_in(new_data_3["game_id"]))
+).select(remainder_df.columns)
+update_data_4 = season_2024.filter(
+    (pl.col("date") >= update_date) & (~pl.col("game_id").is_in(new_data_4["game_id"]))
+).drop_nulls("fieldGoalsMade_109_home_team").select(season_df.columns)
+if update_data_1.shape[0] > 0:
+    response = (
+        connection.table('statistics_previous').upsert(
+            update_data_1.to_dicts()
+        ).execute()
+    )
+if update_data_2.shape[0] > 0:
+    response = (
+        connection.table('statistics_recent_games').upsert(
+            update_data_2.to_dicts()
+        ).execute()
+    )
+if update_data_3.shape[0] > 0:
+    response = (
+        connection.table('statistics_remainder').upsert(
+            update_data_3.to_dicts()
+        ).execute()
+    )
+if update_data_4.shape[0] > 0:
+    response = (
+        connection.table('statistics_season').upsert(
+            update_data_4.to_dicts()
         ).execute()
     )
 h2h_current_year = load_season(
@@ -127,13 +175,26 @@ for i in range(len(df_list)):
 elo_df = pl.concat(elo_df_list)
 elo_df_supabase = collect_all_data('elo', connection)
 new_data_7 = elo_df.join(
-    elo_df_supabase[['game_id', 'team_id']],
+    elo_df_supabase[['game_id', 'team_id', 'elo_before']],
     on=['game_id', 'team_id'],
     how='left'
-).filter(pl.col('game_id').is_null()).to_dicts()
+).filter(pl.col('elo_before-right').is_null()).drop('elo_before_right').to_dicts()
 if len(new_data_7) > 0:
     response = (
         connection.table('elo').insert(
             new_data_7
         ).execute()
     )
+print('Loading LGBM Model')
+os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = os.path.join(
+    os.path.dirname(__file__), '..', 'streamlit', 'credentials', 'cloud-key.json'
+)
+client = storage.Client()
+bucket = client.get_bucket("lgbm")
+mod = lgbm_model(
+    connection = connection,
+    bucket = bucket,
+    data_origin="supabase"
+)
+mod.load_model()
+mod.predict()

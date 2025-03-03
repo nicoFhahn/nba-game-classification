@@ -1,4 +1,4 @@
 .ipynb_checkpoints
 data/
 myenv
-streamlit/credentials.json
+streamlit/credentials/

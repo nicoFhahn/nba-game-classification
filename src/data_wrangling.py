@@ -1,5 +1,3 @@
-import sys
-import os
 from datetime import date, timedelta
 from typing import List
 
@@ -661,11 +659,6 @@ def load_season(
         'schedule',
         connection
     )
-    # boxscore_last_season = data_collection.collect_season_data(
-    #     str(int(season_id) - 1),
-    #     'boxscore',
-    #     connection
-    # )
     boxscore_last_season = data_collection.collect_season_filtered_table(
         str(int(season_id) - 1),
         'boxscore',
