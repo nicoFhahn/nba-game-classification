@@ -1,10 +1,9 @@
 import os
-import json
 from datetime import timedelta, datetime
 
 import polars as pl
 from supabase import create_client
-from google.cloud import storage
+from google.cloud import storage, secretmanager
 
 from data_wrangling import load_season, record_current_season
 from elo_rating import elo_season
@@ -16,10 +15,9 @@ from data_collection import (
     collect_all_data
 )
 
-with open(os.path.join(
-    os.path.dirname(__file__), '..', 'streamlit', 'credentials', 'credentials.json'
-), 'r') as f:
-    creds = json.loads(f.read())
+secret_client = secretmanager.SecretManagerServiceClient()
+response = secret_client.access_secret_version(request={'name':'projects/898760610238/secrets/supabase/versions/1'})
+creds = eval(response.payload.data.decode("UTF-8"))
 connection = create_client(creds['postgres']['project_url'], creds['postgres']['api_key'])
 
 season_dates = pl.DataFrame(connection.table('season').select('*').execute().data).with_columns([
