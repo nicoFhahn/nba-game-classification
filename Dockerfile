@@ -12,6 +12,8 @@ ARG CACHEBUST=1
 RUN git clone https://github.com/nicoFhahn/nba-game-classification.git .
 RUN pip3 install -U pip
 RUN pip3 install -r requirements.txt
+RUN pip3 uninstall streamlit
+RUN pip3 install streamlit-nightly --upgrade
 EXPOSE 8080
 
 HEALTHCHECK CMD curl --fail http://localhost:8080/_stcore/health
