@@ -274,7 +274,7 @@ def collect_season_data(
         connection: Client
 ):
     '''
-    Collects a filterd season table from supabase with chunks of size 1k
+    Collects a filtered season table from supabase with chunks of size 1k
     :param season_id: id of the season
     :param table_name: name of the table
     :param connection: the supabase connection

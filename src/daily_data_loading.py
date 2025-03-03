@@ -1,5 +1,5 @@
 import os
-from datetime import timedelta, datetime
+from datetime import timedelta, datetime, date
 
 import polars as pl
 from supabase import create_client
@@ -12,7 +12,8 @@ from data_collection import (
     season,
     collect_season_statistics,
     collect_season_filtered_table,
-    collect_all_data
+    collect_all_data,
+    collect_season_data
 )
 
 secret_client = secretmanager.SecretManagerServiceClient()
@@ -136,13 +137,33 @@ rec_current_year = record_current_season(
     season_dates.filter(pl.col('season_id') == season_id)['play_in_end'][0],
     connection=connection,
     season_id=season_id,
-).drop_nulls()
+).drop_nulls('games_this_year_home_team')
 rec_current_year_supabase = collect_season_filtered_table(season_id, 'record', connection)
-new_data_6  = rec_current_year.filter(~pl.col('game_id').is_in(rec_current_year_supabase['game_id'])).to_dicts()
+schedule = collect_season_data(season_id, 'schedule', connection)
+new_data_6 = rec_current_year.filter(
+    ~pl.col('game_id').is_in(rec_current_year_supabase['game_id'])
+).join(
+    schedule[["game_id", "date"]],
+    on="game_id"
+).filter(
+    pl.col("date").str.to_date() <= date.today()
+).drop("date").to_dicts()
 if len(new_data_6) > 0:
     response = (
         connection.table('record').insert(
             new_data_6
+        ).execute()
+    )
+update_data_6 = rec_current_year.join(
+    rec_current_year_supabase[["game_id", "points_home"]],
+    on="game_id"
+).filter(
+    pl.col("points_home").is_not_null() & pl.col("points_home_right").is_null()
+).drop("points_home_right").to_dicts()
+if len(update_data_6) > 0:
+    response = (
+        connection.table('record').upsert(
+            update_data_6
         ).execute()
     )
 df_list = []
