@@ -1,4 +1,3 @@
-import os
 from datetime import timedelta, datetime, date
 
 import polars as pl
@@ -189,7 +188,7 @@ for i in range(len(df_list)):
         )
     else:
         elo_df_list.append(
-            elo_season(df_list[i], elo_df_list[i - 1])
+            elo_season(df_list[i].drop_nulls('points_home'), elo_df_list[i - 1])
         )
 elo_df = pl.concat(elo_df_list)
 elo_df_supabase = collect_all_data('elo', connection)
@@ -197,7 +196,7 @@ new_data_7 = elo_df.join(
     elo_df_supabase[['game_id', 'team_id', 'elo_before']],
     on=['game_id', 'team_id'],
     how='left'
-).filter(pl.col('elo_before-right').is_null()).drop('elo_before_right').to_dicts()
+).filter(pl.col('elo_before_right').is_null()).drop('elo_before_right').to_dicts()
 if len(new_data_7) > 0:
     response = (
         connection.table('elo').insert(
@@ -205,9 +204,6 @@ if len(new_data_7) > 0:
         ).execute()
     )
 print('Loading LGBM Model')
-os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = os.path.join(
-    os.path.dirname(__file__), '..', 'streamlit', 'credentials', 'cloud-key.json'
-)
 client = storage.Client()
 bucket = client.get_bucket("lgbm")
 mod = lgbm_model(

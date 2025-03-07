@@ -6,6 +6,7 @@ from supabase import Client
 import polars as pl
 import polars.selectors as cs
 import data_collection
+from modelling import lgbm_model
 
 def load_schedule(
     all_star_date: date,
@@ -14,15 +15,15 @@ def load_schedule(
     connection: Client,
     season_id: str
 ) -> pl.DataFrame:
-  '''
+  """
   Loads the schedule of a season
-  :folder: folder where the data is saved
-  :filename_schedule: name of the file containing the schedule
-  :filename_games: name of the file containing the games
-  :all_star_date: date the all star game takes place
-  :play_in_start: date the nba play in begins
-  :play_in_end: date the nba play in ends
-  '''
+  :param all_star_date: date the all star game takes place
+  :param play_in_start: date the nba play in begins
+  :param play_in_end: date the nba play in ends
+  :param connection: supabase client
+  :param season_id: season id to filter for
+  :return: the schedule for a season together with the boxscore data
+  """
   schedule_df = data_collection.collect_season_data(
       season_id,
       'schedule',
@@ -63,6 +64,11 @@ def load_schedule(
 def get_team_schedules(
         df: pl.DataFrame
 ) -> List[pl.DataFrame]:
+    """
+    Gets individual schedules for all the teams
+    :param df: A seasons schedule
+    :return: A list containing each teams games / schedule
+    """
     team_ids = set(df['home_team_id'])
     team_schedules = [
         df.filter(
@@ -77,12 +83,12 @@ def team_boxscore(
     df: pl.DataFrame,
     team_id: int
     ) -> pl.DataFrame:
-    '''
+    """
     Extracts the stats/boxscore of one team (and a few stats of their opponents)
-    for each game of the season
-    :df: all games within one season
-    :team_id: unique identifier of a team
-    '''
+    :param df: all games within one season
+    :param team_id: the id of a team
+    :return: game-by-game statistics of a team
+    """
     home_df = df.filter(pl.col('home_team_id') == team_id).with_columns([
         (pl.col('points_home') > pl.col('points_away')).alias('is_win')
     ])
@@ -130,14 +136,15 @@ def team_season_stats(
     df: pl.DataFrame,
     window_sizes: list[int] = [8, 109]
     ) -> pl.DataFrame:
-    '''
+    """
     Extracts the stats of a team heading into a game
     for each game of the season
-    :df: all games within one season of a specific team
-    :window_sizes: windows of past games. should include 109 to include the
+    :param df: all games within one season of a specific team
+    :param window_sizes: windows of past games. should include 109 to include the
     stats up until one point in a season (109 as a team can play a max of 110)
     games in a season
-    '''
+    :return: a dataframe that includes rolling statistics
+    """
     absolute_columns = [
         'fieldGoalsMade', 'fieldGoalsAttempted', 'threePointersMade',
         'threePointersAttempted', 'freeThrowsMade', 'freeThrowsAttempted',
@@ -453,12 +460,13 @@ def head_to_head(
     df_1: pl.DataFrame,
     df_2: pl.DataFrame = None
 ) -> pl.DataFrame:
-    '''
+    """
     Extracts the h2h winning percentage of the home team against the opposing
     team.
-    :df_1: schedule of the current season
-    :df_2: schedule of the previous season
-    '''
+    :param df_1: schedule of the current season
+    :param df_2: schedule of the previous season
+    :return:h2h statistics of the current and previous season
+    """
     df_1 = df_1.sort('date').with_columns([
         pl.struct([
             'date', 'home_team_id', 'away_team_id'
@@ -560,12 +568,12 @@ def head_to_head(
 def location_winning_percentage(
     df: pl.DataFrame
   ) -> pl.DataFrame:
-  '''
-  Extracts the winning percentage of the home team at home and the road team
-  on the road
-  :df: schedule of a season
-  '''
-  df = df.with_columns(
+    """
+    Extracts the winning percentage of each team at home / on the road
+    :param df: A seasons schedule
+    :return: dataframe containing the winning percentages
+    """
+    df = df.with_columns(
       pl.struct(
           ['date', 'home_team_id']
       ).map_elements(
@@ -604,47 +612,47 @@ def location_winning_percentage(
                 (pl.col('away_team_id') == x['away_team_id'])
             ).shape[0], return_dtype=pl.Int64
       ).alias('previous_away_games')
-  ).with_columns([
-      (
-          pl.col('previous_home_wins') /
-          pl.col('previous_home_games')
-      ).fill_nan(None).alias('winning_percentage_home'),
-      (
-          pl.col('previous_away_wins') /
-          pl.col('previous_away_games')
-      ).fill_nan(None).alias('winning_percentage_away')
-  ])
-  return df
+    ).with_columns([
+        (
+                pl.col('previous_home_wins') /
+                pl.col('previous_home_games')
+        ).fill_nan(None).alias('winning_percentage_home'),
+        (
+                pl.col('previous_away_wins') /
+                pl.col('previous_away_games')
+        ).fill_nan(None).alias('winning_percentage_away')
+    ])
+    return df
 
 def merge_schedule_with_team_stats(
-    schedule_df: pl.DataFrame,
+    df: pl.DataFrame,
     team_stats: list[pl.DataFrame]
-  ):
-  '''
-  Merges the data from a seasons schedule with the teams stats heading into
-  the games + general details of the team
-  :schedule_df: schedule of a season
-  :team_stats: stats of the teams
-  :team_details_df: general team details
-  '''
-  team_stats_df = pl.concat(team_stats).drop(['date', 'game_type'])
-  schedule_df = schedule_df.with_columns(
-      (pl.col('points_home') > pl.col('points_away')).alias('is_home_win')
-  ).select([
-      'date', 'game_id', 'home_team_id', 'away_team_id', 'game_type',
-      'is_home_win', 'previous_games', 'h2h_current_year',
-      'h2h_previous_year'
-  ]).join(
-      team_stats_df.rename(lambda c: c + '_home_team'),
-      left_on=['game_id', 'home_team_id'],
-      right_on=['game_id_home_team', 'team_id_home_team']
-  ).join(
-      team_stats_df.rename(lambda c: c + '_away_team'),
-      left_on=['game_id', 'away_team_id'],
-      right_on=['game_id_away_team', 'team_id_away_team']
-  )
-  schedule_df = schedule_df.sort('date').drop(['is_win_home_team', 'is_win_away_team'])
-  return schedule_df
+  ) -> pl.DataFrame:
+    """
+    Merges the data from a seasons schedule with the teams stats heading into
+    the games
+    :param df: schedule of a season
+    :param team_stats: stats of the teams
+    :return: dataframe containing stats of the respective teams
+    """
+    team_stats_df = pl.concat(team_stats).drop(['date', 'game_type'])
+    df = df.with_columns(
+          (pl.col('points_home') > pl.col('points_away')).alias('is_home_win')
+      ).select([
+          'date', 'game_id', 'home_team_id', 'away_team_id', 'game_type',
+          'is_home_win', 'previous_games', 'h2h_current_year',
+          'h2h_previous_year'
+      ]).join(
+          team_stats_df.rename(lambda c: c + '_home_team'),
+          left_on=['game_id', 'home_team_id'],
+          right_on=['game_id_home_team', 'team_id_home_team']
+      ).join(
+          team_stats_df.rename(lambda c: c + '_away_team'),
+          left_on=['game_id', 'away_team_id'],
+          right_on=['game_id_away_team', 'team_id_away_team']
+      )
+    df = df.sort('date').drop(['is_win_home_team', 'is_win_away_team'])
+    return df
 
 def load_season(
     all_star_date: date,
@@ -654,6 +662,16 @@ def load_season(
     season_id: str,
     return_h2h: bool = False
 ) -> pl.DataFrame:
+    """
+    Loads all relevant data for a season
+    :param all_star_date: date of the all star game
+    :param play_in_start: date of the start of the play in tournament
+    :param play_in_end: date of the end of the play in tournament
+    :param connection: supabase connection
+    :param season_id: season id
+    :param return_h2h: whether to only return a dataframe containing the head to head of the teams
+    :return: A dataframe containing all relevant boxscore statistics heading into each game of the season
+    """
     schedule_last_season = data_collection.collect_season_data(
         str(int(season_id) - 1),
         'schedule',
@@ -703,7 +721,18 @@ def load_season(
     ])
     return schedule_current_season
 
-def newest_games(connection, mod, season_id: str = '2024'):
+def newest_games(
+        connection: Client,
+        mod: lgbm_model,
+        season_id: str = '2024'
+):
+    """
+    Get the newest games for which predictions were made with some high-level statistics around them
+    :param connection: supabase connection
+    :param mod: lgbm model from modelling.py
+    :param season_id: id of the season
+    :return: a small dataframe with relevant stats
+    """
     team_df = data_collection.collect_all_data('team_details', connection)
     mod.load_model()
     games = mod.full_data.with_columns([
@@ -854,6 +883,15 @@ def record_current_season(
     connection: Client,
     season_id: str
 ):
+    """
+    Calculates the record of a team in the current season
+    :param all_star_date: date of the all star game
+    :param play_in_start: date of the start of the play in tournament
+    :param play_in_end: date of the end of the play in tournament
+    :param connection: supabase connection
+    :param season_id: id of the season
+    :return: dataframe containing number of games and wins for the teams
+    """
     schedule_current_season = load_schedule(
         all_star_date,
         play_in_start,

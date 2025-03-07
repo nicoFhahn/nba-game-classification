@@ -5,11 +5,29 @@ import polars as pl
 from data_wrangling import get_team_schedules
 
 
-def expected_outcome(elo_team, elo_opponent):
+def expected_outcome(
+        elo_team: float,
+        elo_opponent: float
+) -> float:
+    """
+    Calculates the expected outcome based on the elo scores
+    :param elo_team: elo of team 1
+    :param elo_opponent: elo of team 2
+    :return: float value of expected outcome
+    """
     return 1 / (1 + 10 ** ((elo_opponent - elo_team) / 400))
 
 
-def mov_multiplier(mov, elo_diff):
+def mov_multiplier(
+        mov: float,
+        elo_diff: float
+) -> float:
+    """
+    calculates the margin of victory multiplier
+    :param mov: margin of victory
+    :param elo_diff: absolute difference in elo values
+    :return: the multipler as a float
+    """
     return ((mov + 3) ** 0.8) / (7.5 + 0.006 * elo_diff)
 
 
@@ -19,6 +37,15 @@ def elo_season(
         k_factor: int = 20,
         home_court_advantage: int = 100
 ) -> pl.DataFrame:
+    """
+    Calculates the elo rating of team through a season
+    :param df: games of the season
+    :param initial_elo: either initial int value to use as starting point or dataframe
+    containing the elo scores from the previous season
+    :param k_factor: k-value (20 based on 538 article)
+    :param home_court_advantage: factor for homecourt advantage (100 based on 538 article)
+    :return: df containing the elo before and after each game for each team
+    """
     elo_ratings = {}
     team_ids = list(set(df['home_team_id']))
 

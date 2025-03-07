@@ -39,7 +39,7 @@ col_1, col_2, col_3, col_4 = st.columns(4)
 performance_df_melted = mod.performance['over_time'].unpivot(
     index='date'
 ).with_columns(
-    pl.col('variable').str.replace('_', ' ').str.to_titlecase()
+    pl.col('variable').str.replace_all('_', ' ').str.to_titlecase()
 )
 with col_1:
     metric_title_1 = 'Accuracy'
@@ -64,6 +64,8 @@ with col_1:
         title='Accuracy Over Time',
         subtitle='Including 14-Day Rolling Accuracy',
         text_format='.2f'
+    ).configure_legend(
+        orient="top"
     )
     st.altair_chart(
         plot_1,
@@ -92,6 +94,8 @@ with col_2:
         title='Precision Over Time',
         subtitle='Including 14-Day Rolling Precision',
         text_format='.2f'
+    ).configure_legend(
+        orient="top"
     )
     st.altair_chart(
         plot_2,
@@ -120,6 +124,8 @@ with col_3:
         title='Recall Over Time',
         subtitle='Including 14-Day Rolling Recall',
         text_format='.2f'
+    ).configure_legend(
+        orient="top"
     )
     st.altair_chart(
         plot_3,
@@ -148,6 +154,8 @@ with col_4:
         title='F1-Score Over Time',
         subtitle='Including 14-Day Rolling F1-Score',
         text_format='.2f'
+    ).configure_legend(
+        orient="top"
     )
     st.altair_chart(
         plot_4,

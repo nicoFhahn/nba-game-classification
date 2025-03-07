@@ -48,12 +48,13 @@ class lgbm_model():
             train_size: float = 0.85,
             remove_size: float = 0.05
     ):
-        '''
-
-        :param train_size:
-        :param remove_size:
+        """
+        Loads the data. either from the database or the blob storage
+        :param train_size: Share of the data that should be used for training (after removing
+        the oldest obervations)
+        :param remove_size: Share of the oldest observations to use
         :return:
-        '''
+        """
         if self.data_origin == 'google':
             blob = self.bucket.blob('final_data.parquet')
             blob.download_to_filename('final_data.parquet')
@@ -197,12 +198,14 @@ class lgbm_model():
             n_folds: int = 5,
             use_shapley: bool = True
     ):
-        '''
-
-        :param n_folds:
-        :param use_shapley:
+        """
+        Perform stepwise forward feature selection by removing the least important feature(s) at
+        each step
+        :param n_folds: number of folds to use for evaluation
+        :param use_shapley: whether to use shapley values for feature selection or not. otherwise
+        LGBMs internal metric is used
         :return:
-        '''
+        """
         split = TimeSeriesSplit(n_folds)
         filename = f'lgbm_evaluation_{self.training_timestamps['val_end'].strftime('%B')}_{self.training_timestamps['val_end'].year}.json'.lower()
         last_train_date = (self.training_timestamps['val_start'] + timedelta(days=-1)).isoformat()
@@ -368,6 +371,16 @@ class lgbm_model():
             y_test: pl.Series,
             random_state: int
     ):
+        """
+        Objective function to use for optuna
+        :param trial: optuna trial
+        :param X_train: Feature matrix for model training
+        :param y_train: Result vector for model training
+        :param X_test: Feature matrix for evaluation
+        :param y_test: Result vector for evaluation
+        :param random_state: Random state to use for the model
+        :return:
+        """
         # Define the hyperparameters to tune
         params = {
             'n_estimators': trial.suggest_int('iterations', 50, 1000),
@@ -401,6 +414,11 @@ class lgbm_model():
         return accuracy
 
     def tune_hyperparameters(self):
+        """
+        Tunes the hyperparameter of the model using the best features from the feature selection
+        algorithm
+        :return:
+        """
         study = optuna.create_study(direction='maximize')
         best_features = self.load_best_features()[0]
         obj = partial(
@@ -427,6 +445,10 @@ class lgbm_model():
         print('Hyperparameter tuning completed.')
 
     def load_best_features(self):
+        """
+        Loads the latest feature selection evaluation json
+        :return:
+        """
         filename = download_newest_matching_json_file("lgbm", "", "lgbm*.json")
         with open(filename, 'r') as f:
             evaluation = json.loads(f.read())
@@ -436,6 +458,10 @@ class lgbm_model():
         return best_features, last_train_date
 
     def load_best_params(self):
+        """
+        Loads the latest hyperparameter json
+        :return:
+        """
         filename = download_newest_matching_json_file("lgbm", "", "params*.json")
         with open(filename, 'r') as f:
             params = json.loads(f.read())
@@ -443,6 +469,10 @@ class lgbm_model():
         return params
 
     def train_final_model(self):
+        """
+        Train the final lgbm model based on the best features and best parameters
+        :return:
+        """
         best_features = self.load_best_features()[0]
         best_params = self.load_best_params()
         X_train = pl.concat([
@@ -480,6 +510,10 @@ class lgbm_model():
         print('Final model trained and saved')
 
     def load_model(self):
+        """
+        Load a model from the blob storage
+        :return:
+        """
         filename = 'lgbm_model.pkl'
         blob = self.bucket.blob(filename)
         blob.download_to_filename(filename)
@@ -488,6 +522,11 @@ class lgbm_model():
         self.model = mod
 
     def predict(self):
+        """
+        Make prediction only for the yet-to-be predicted games and push the results
+        to the database
+        :return:
+        """
         best_features, cutoff_date = self.load_best_features()
         previous_predictions = collect_all_data('predictions', self.connection)
         cutoff_date = self.full_data.join(
@@ -514,6 +553,10 @@ class lgbm_model():
         response = self.connection.table('predictions').insert(prediction_df.to_dicts()).execute()
 
     def evaluate_performance(self):
+        """
+        Evaluate the performance of the model through accuracy, precision, recall and f1-score
+        :return:
+        """
         predictions = collect_all_data('predictions', self.connection)
         if self.full_data is None:
             self.load_data()
@@ -654,31 +697,19 @@ class lgbm_model():
 
 
 def download_newest_matching_json_file(bucket_name, destination_folder, pattern):
-    # Initialize a client
     client = storage.Client()
-
-    # Get the bucket
     bucket = client.get_bucket(bucket_name)
-
-    # List all blobs in the bucket
     blobs = bucket.list_blobs()
-
-    # Filter blobs matching the pattern and find the newest one
     newest_blob = None
     newest_time = None
-
     for blob in blobs:
         if fnmatch.fnmatch(blob.name, pattern):
             blob_time = blob.updated
             if newest_time is None or blob_time > newest_time:
                 newest_blob = blob
                 newest_time = blob_time
-
     if newest_blob:
-        # Define the local path to save the file
         local_file_path = os.path.join(destination_folder, os.path.basename(newest_blob.name))
-
-        # Download the newest blob to the local destination
         newest_blob.download_to_filename(local_file_path)
         print(f"Downloaded newest matching file: {newest_blob.name} to {local_file_path}")
         return local_file_path

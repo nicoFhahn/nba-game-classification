@@ -3,6 +3,7 @@ from time import sleep
 
 import numpy as np
 import polars as pl
+from polars import DataFrame
 from tqdm import tqdm
 from nba_api.stats import endpoints
 from supabase import Client
@@ -41,11 +42,11 @@ def daily_games(
 
 def boxscore(
         game_id: str
-) -> pl.DataFrame:
+) -> pl.DataFrame | None:
     '''
     Creates a dataframe containing a lot of different boxscore metrics for a given game
     :param game_id: The id of the game
-    :return: dataframe with gameid + the boxscore details
+    :return: dataframe with game id + the boxscore details
     '''
     try:
         bs_traditional = endpoints.boxscoretraditionalv3.BoxScoreTraditionalV3(game_id=game_id)
@@ -191,11 +192,11 @@ def season(
         end_date: date,
         connection: Client,
         season_id: str
-):
+) -> None:
     '''
-    Scrapes data for all games between two dates and pushes it into database
+    Scrapes data for all games between two dates and pushes it into supabase database
     :param start_date: beginning of the timeframe
-    :param end_date: end of the tiemframe
+    :param end_date: end of the timeframe
     :param connection: a supabase connection
     :param season_id: unique id for the season
     :return: nothing
@@ -251,15 +252,19 @@ def season(
 def collect_all_data(
         table_name: str,
         connection: Client
-):
+) -> pl.DataFrame:
     '''
-    Collects an entire table from supabase with chunks of size 1k
+    Collects an entire table from supabase through chunks of size 1k
     :param table_name: name of the table
     :param connection: the supabase connection
-    :return:
+    :return: the table from the db
     '''
     chunk_size = 1000
-    row_count = connection.table(table_name).select('*', head=True, count='exact').execute().count
+    row_count = connection.table(
+        table_name
+    ).select(
+        '*', head=True, count='exact'
+    ).execute().count
     all_data = [
         item
         for start in range(0, row_count, chunk_size)
@@ -272,14 +277,14 @@ def collect_season_data(
         season_id: str,
         table_name: str,
         connection: Client
-):
-    '''
-    Collects a filtered season table from supabase with chunks of size 1k
+) -> pl.DataFrame:
+    """
+    Collects a filtered season table from supabase through chunks of size 1k
     :param season_id: id of the season
     :param table_name: name of the table
     :param connection: the supabase connection
-    :return:
-    '''
+    :return: a table with all the rows for the filtered season
+    """
     chunk_size = 1000
     row_count = connection.table(table_name).select(
         '*', head=True, count='exact'
@@ -288,21 +293,41 @@ def collect_season_data(
         item
         for start in range(0, row_count, chunk_size)
         for item in
-        connection.table(table_name).select('*').eq('season_id', season_id).range(start, min(start + chunk_size - 1, row_count - 1)).execute().data
+        connection.table(
+            table_name
+        ).select('*').eq(
+            'season_id', season_id
+        ).range(
+            start, min(start + chunk_size - 1, row_count - 1)
+        ).execute().data
     ]
     return pl.DataFrame(all_data)
 
 def collect_season_statistics(
         season_id: str,
         connection: Client
-):
-    chunk_size = 1000
+) -> tuple[DataFrame, DataFrame, DataFrame, DataFrame]:
+    """
+    Collects season statistics from different tables
+    :param season_id: the season to filter for
+    :param connection: supabase client
+    :return: tuple containing the statistics in 4 dataframes
+    """
     def collect_filter(
             season_id: str,
             table_name: str,
             connection: Client
-    ):
-        row_count = connection.table(table_name).select(
+    ) -> pl.DataFrame:
+        """
+        quick helper to get the relevant data including game id
+        :param season_id: the season to filter for
+        :param table_name: table to filter for
+        :param connection: supabase client
+        :return: filtered dataframe
+        """
+        row_count = connection.table(
+            table_name
+        ).select(
         '*, schedule!inner(season_id)', head=True, count='exact'
         ).eq('schedule.season_id', season_id).execute().count
         chunk_size = 1000
@@ -316,7 +341,8 @@ def collect_season_statistics(
                 'schedule.season_id', season_id
             ).range(start, min(start + chunk_size - 1, row_count - 1)).execute().data
         ]
-        return pl.DataFrame(all_data, infer_schema_length=2000).drop('game_id').unnest('schedule').drop('season_id')
+        df = pl.DataFrame(all_data, infer_schema_length=2000).drop('game_id').unnest('schedule').drop('season_id')
+        return df
 
     previous_df = collect_filter(season_id, 'statistics_previous', connection)
     recent_games_df = collect_filter(season_id, 'statistics_recent_games', connection)
@@ -328,7 +354,14 @@ def collect_season_filtered_table(
         season_id: str,
         table_name: str,
         connection: Client
-):
+) -> pl.DataFrame:
+    """
+    Collects a filtered season table from supabase through chunks of size 1k but also with the game id
+    :param season_id: id of the season
+    :param table_name: name of the table
+    :param connection: the supabase connection
+    :return: a table with all the rows for the filtered season
+    """
     chunk_size = 1000
     row_count = connection.table(table_name).select(
         '*, schedule!inner(season_id)', head=True, count='exact'
@@ -343,12 +376,19 @@ def collect_season_filtered_table(
             'schedule.season_id', season_id
         ).range(start, min(start + chunk_size - 1, row_count - 1)).execute().data
     ]
-    return pl.DataFrame(all_data).drop('game_id').unnest('schedule').drop('season_id')
+    df = pl.DataFrame(all_data).drop('game_id').unnest('schedule').drop('season_id')
+    return df
 
 def collect_boxscore_table(
         season_id: str,
         connection: Client
-):
+) -> pl.DataFrame:
+    """
+    Collects a filtered boxscore table from supabase through chunks of size 1k
+    :param season_id: id of the season
+    :param connection: the supabase connection
+    :return: a table with all the rows for the filtered season
+    """
     chunk_size = 1000
     row_count = connection.table('boxscore').select(
         'game_id,schedule!inner(season_id)', head=True, count='exact'
@@ -363,4 +403,5 @@ def collect_boxscore_table(
             'schedule.season_id', season_id
         ).range(start, min(start + chunk_size - 1, row_count - 1)).execute().data
     ]
-    return pl.DataFrame(all_data).drop('game_id').unnest('schedule')
+    df = pl.DataFrame(all_data).drop('game_id').unnest('schedule')
+    return df

@@ -1,0 +1,3 @@
+# todo:
+number of upsets wins / losses
+elo change absolute / relative
