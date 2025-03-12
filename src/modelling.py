@@ -29,12 +29,14 @@ class lgbm_model():
             connection: Client,
             bucket: storage.Bucket,
             random_state: int = 7918,
-            data_origin: str = "google"
+            data_origin: str = "google",
+            elo_advantage_home: int = 100
     ):
         self.connection = connection
         self.random_state = random_state
         self.bucket = bucket
         self.data_origin = data_origin
+        self.elo_advantage_home = elo_advantage_home
         self.load_data()
 
     def accuracy_metric(y_true, y_pred):
@@ -85,8 +87,20 @@ class lgbm_model():
                 'statistics_remainder',
                 self.connection
             )
-            current_elo = df_2.with_columns(pl.col('date').str.to_date()).group_by('team_id').tail(1).select(
-                ['team_id', 'elo_after'])
+            df_2 = df_2.with_columns([
+                pl.col("date").str.to_date()
+            ]).with_columns([
+                pl.col("elo_before").shift(8).over(pl.col("team_id"), order_by=pl.col("date")).alias("elo_before_8_games_ago"),
+                pl.col("elo_after").shift(8).over(pl.col("team_id"), order_by=pl.col("date")).alias("elo_after_8_games_ago")
+            ]).with_columns([
+                (pl.col("elo_before") - pl.col("elo_before_8_games_ago")).alias("elo_before_change_absolute"),
+                (pl.col("elo_before") / pl.col("elo_before_8_games_ago") - 1).alias("elo_before_change_relative"),
+                (pl.col("elo_after") - pl.col("elo_after_8_games_ago")).alias("elo_after_change_absolute"),
+                (pl.col("elo_after") / pl.col("elo_after_8_games_ago") - 1).alias("elo_after_change_relative")
+            ])
+            current_elo = df_2.group_by('team_id').tail(1).select(
+                ['team_id', 'elo_after', 'elo_after_change_absolute', 'elo_after_change_relative']
+            )
             temp_df = df_1.join(
                 df_3, on='game_id'
             ).join(
@@ -96,12 +110,18 @@ class lgbm_model():
             ).join(
                 df_6, on='game_id'
             ).join(
-                df_2.drop(['elo_after', 'date']),
+                df_2.drop([
+                    'elo_after', 'elo_after_change_absolute', 'elo_after_change_relative', 'date',
+                    'elo_before_8_games_ago', 'elo_after_8_games_ago'
+                ]),
                 left_on=['game_id', 'home_team_id'],
                 right_on=['game_id', 'team_id'],
                 how='left'
             ).join(
-                df_2.drop(['elo_after', 'date']),
+                df_2.drop([
+                    'elo_after', 'elo_after_change_absolute', 'elo_after_change_relative', 'date',
+                    'elo_before_8_games_ago', 'elo_after_8_games_ago'
+                ]),
                 left_on=['game_id', 'away_team_id'],
                 right_on=['game_id', 'team_id'],
                 how='left'
@@ -116,9 +136,66 @@ class lgbm_model():
             ).with_columns([
                 pl.coalesce(pl.col('elo_before'), pl.col('elo_after')).alias('elo_home_team'),
                 pl.coalesce(pl.col('elo_before_right'), pl.col('elo_after_right')).alias('elo_away_team'),
+                pl.coalesce(pl.col('elo_before_change_absolute'), pl.col('elo_after_change_absolute')).alias('elo_change_absolute_home_team'),
+                pl.coalesce(pl.col('elo_before_change_absolute_right'), pl.col('elo_after_change_absolute_right')).alias('elo_change_absolute_away_team'),
+                pl.coalesce(pl.col('elo_before_change_relative'), pl.col('elo_after_change_relative')).alias('elo_change_relative_home_team'),
+                pl.coalesce(pl.col('elo_before_change_relative_right'), pl.col('elo_after_change_relative_right')).alias('elo_change_relative_away_team'),
                 pl.col('date').str.to_date()
+            ])
+            temp_df = temp_df.with_columns([
+                pl.struct([
+                    'home_team_id', 'date', 'season_id'
+                ]).map_elements(
+                    lambda x: temp_df.filter(
+                        (
+                            (
+                                (pl.col('home_team_id') == x['home_team_id']) &
+                                (pl.col('is_home_win')) &
+                                ((self.elo_advantage_home + pl.col('elo_home_team')) < pl.col('elo_away_team'))
+                            ) |
+                            (
+                                (pl.col('away_team_id') == x['home_team_id']) &
+                                (~pl.col('is_home_win')) &
+                                ((self.elo_advantage_home + pl.col('elo_home_team')) >= pl.col('elo_away_team'))
+                                )
+                        ) &
+                        (
+                            pl.col('date') < x['date']
+                        ) &
+                        (
+                            pl.col('season_id') == x['season_id']
+                        )
+                    ).shape[0], return_dtype=pl.Int64
+                ).alias('upsets_this_year_home'),
+                pl.struct([
+                    'away_team_id', 'date', 'season_id'
+                ]).map_elements(
+                    lambda x: temp_df.filter(
+                        (
+                            (
+                                (pl.col('home_team_id') == x['away_team_id']) &
+                                (pl.col('is_home_win')) &
+                                ((self.elo_advantage_home + pl.col('elo_home_team')) < pl.col('elo_away_team'))
+                            ) |
+                            (
+                                (pl.col('away_team_id') == x['away_team_id']) &
+                                (~pl.col('is_home_win')) &
+                                ((self.elo_advantage_home + pl.col('elo_home_team')) >= pl.col('elo_away_team'))
+                                )
+                        ) &
+                        (
+                            pl.col('date') < x['date']
+                        ) &
+                        (
+                            pl.col('season_id') == x['season_id']
+                        )
+                    ).shape[0], return_dtype=pl.Int64
+                ).alias('upsets_this_year_away')
             ]).drop([
-                'elo_before', 'elo_before_right', 'elo_after', 'elo_after_right', 'season_id'
+                'elo_before', 'elo_before_right', 'elo_after', 'elo_after_right',
+                'elo_before_change_absolute', 'elo_before_change_absolute_right',
+                'elo_before_change_relative', 'elo_before_change_relative_right',
+                'season_id'
             ])
             self.full_data = temp_df.sort('date')
             temp_df.write_parquet('final_data.parquet')
@@ -196,7 +273,8 @@ class lgbm_model():
     def feature_selection(
             self,
             n_folds: int = 5,
-            use_shapley: bool = True
+            use_shapley: bool = True,
+            force: bool = False
     ):
         """
         Perform stepwise forward feature selection by removing the least important feature(s) at
@@ -209,7 +287,7 @@ class lgbm_model():
         split = TimeSeriesSplit(n_folds)
         filename = f'lgbm_evaluation_{self.training_timestamps['val_end'].strftime('%B')}_{self.training_timestamps['val_end'].year}.json'.lower()
         last_train_date = (self.training_timestamps['val_start'] + timedelta(days=-1)).isoformat()
-        if filename in [b.name for b in self.bucket.list_blobs()]:
+        if (filename in [b.name for b in self.bucket.list_blobs()]) and not force:
             blob = self.bucket.blob(filename)
             blob.download_to_filename(filename)
             with open(filename, 'r') as f:
