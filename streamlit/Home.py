@@ -21,7 +21,5 @@ National Basketball Association.
 
 It has been trained on data starting from the 2020 season.
 
-The data comes from the NBAs official API and is updated near daily.
-
-The model is retrained every month.
+The data comes from the NBAs official API. Due to the technical limitations it is currently not possible update the data on a daily basis.
 ''')
