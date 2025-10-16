@@ -4,9 +4,10 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y \
     build-essential \
     curl \
-    software-properties-common \
+    software-properties-common git \
     git \
     && rm -rf /var/lib/apt/lists/*
+
 
 RUN git clone https://github.com/nicoFhahn/nba-game-classification.git .
 RUN pip3 install -U pip
