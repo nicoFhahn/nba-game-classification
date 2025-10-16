@@ -19,12 +19,10 @@ if 'model' not in st.session_state:
         st.session_state['model'] = mod
         st.session_state['connection'] = connection
 
-df_today = data_wrangling.newest_games(
-    st.session_state['connection'],
-    st.session_state['model']
-)
 mod = st.session_state['model']
-mod.load_model()
+blob = mod.bucket.blob('newest_games.parquet')
+blob.download_to_filename('newest_games.parquet')
+df_today = pl.read_parquet('newest_games.parquet').drop('game_id')
 games = mod.full_data
 best_features = mod.load_best_features()[0]
 train_data = pl.concat([
@@ -40,12 +38,12 @@ explainer = shap.Explainer(
     feature_names=mod.X['train'].select(pl.col(best_features)).drop('date').columns
 )
 shap_values_train = explainer(
-        pl.concat(
-            [mod.X['train'], mod.X['test']]
-        ).select(
-            pl.col(best_features)
-        ).drop('date').sample(400, seed=7918).to_numpy()
-    )
+    pl.concat(
+        [mod.X['train'], mod.X['test']]
+    ).select(
+        pl.col(best_features)
+    ).drop('date').sample(400, seed=7918).to_numpy()
+)
 st.markdown(
     '''
     All of the plots shown on this page were calculated using a sample of 400 observations from the training data.

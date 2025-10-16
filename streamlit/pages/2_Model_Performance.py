@@ -19,22 +19,29 @@ if 'model' not in st.session_state:
         st.session_state['model'] = mod
         st.session_state['connection'] = connection
 mod = st.session_state['model']
-mod.evaluate_performance()
-team_df = team_df = data_collection.collect_all_data('team_details', st.session_state['connection'])
-performance_df = mod.performance['by_team']
-performance_df = performance_df.join(
-    team_df,
-    on='team_id'
-).with_columns([
-    pl.concat_str(
-        pl.lit('https://raw.githubusercontent.com/nicoFhahn/nba-game-classification/main/streamlit/logos/'),
-        pl.col('team_id'),
-        pl.lit('.png')
-    ).alias('team_logo')
-]).sort('accuracy', descending=True).select([
-    'team_logo', 'team_name', 'accuracy', 'precision', 'recall', 'f1_score',
-    'true_positives', 'true_negatives', 'false_positives', 'false_negatives'
-])
+blob = mod.bucket.blob('performance_df.parquet')
+blob.download_to_filename('performance_df.parquet')
+performance_df = pl.read_parquet('performance_df.parquet')
+#mod.evaluate_performance()
+#team_df = team_df = data_collection.collect_all_data('team_details', st.session_state['connection'])
+#performance_df = mod.performance['by_team']
+#performance_df = performance_df.join(
+#    team_df,
+#    on='team_id'
+#).with_columns([
+#    pl.concat_str(
+#        pl.lit('https://raw.githubusercontent.com/nicoFhahn/nba-game-classification/main/streamlit/logos/'),
+#        pl.col('team_id'),
+#        pl.lit('.png')
+#    ).alias('team_logo')
+#]).sort('accuracy', descending=True).select([
+#    'team_logo', 'team_name', 'accuracy', 'precision', 'recall', 'f1_score',
+#    'true_positives', 'true_negatives', 'false_positives', 'false_negatives'
+#])
+blob = mod.bucket.blob('performance_over_time_df.parquet')
+blob.download_to_filename('performance_over_time_df.parquet')
+performance_over_time_df = pl.read_parquet('performance_over_time_df.parquet')
+mod.performance['over_time'] = performance_over_time_df
 col_1, col_2, col_3, col_4 = st.columns(4)
 performance_df_melted = mod.performance['over_time'].unpivot(
     index='date'

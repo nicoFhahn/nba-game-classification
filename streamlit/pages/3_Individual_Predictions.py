@@ -19,10 +19,10 @@ if 'model' not in st.session_state:
         st.session_state['model'] = mod
         st.session_state['connection'] = connection
 
-df_today = data_wrangling.newest_games(
-    st.session_state['connection'],
-    st.session_state['model']
-)
+mod = st.session_state['model']
+blob = mod.bucket.blob('newest_games.parquet')
+blob.download_to_filename('newest_games.parquet')
+df_today = pl.read_parquet('newest_games.parquet')
 mod = st.session_state['model']
 mod.load_model()
 games = mod.full_data
@@ -35,9 +35,16 @@ X_new = games.to_dummies([
 ]).drop([
     'home_team_id', 'away_team_id'
 ]).filter(
-    (pl.col('is_home_win').is_null()) &
-    (pl.col('date') == games.filter(pl.col('is_home_win').is_null())['date'].min())
+    pl.col('game_id').is_in(df_today['game_id'].to_list())
 ).sort('game_id').select(pl.col(best_features)).drop('date')
+#X_new = games.to_dummies([
+#    'game_type', 'month', 'weekday'
+#]).drop([
+#    'home_team_id', 'away_team_id'
+#]).filter(
+#    (pl.col('is_home_win').is_null()) &
+#    (pl.col('date') == games.filter(pl.col('is_home_win').is_null())['date'].min())
+#).sort('game_id').select(pl.col(best_features)).drop('date')
 df_today = df_today.with_columns([
     pl.concat_str(
         pl.col('home_team_name'),

@@ -2,6 +2,7 @@ import sys
 import os
 
 import streamlit as st
+import polars as pl
 
 from src.helpers import get_model
 
@@ -15,11 +16,14 @@ if 'model' not in st.session_state:
         mod, connection = get_model()
         st.session_state['model'] = mod
         st.session_state['connection'] = connection
-
-df_today = data_wrangling.newest_games(
-    st.session_state['connection'],
-    st.session_state['model']
-).drop('game_id')
+mod = st.session_state['model']
+blob = mod.bucket.blob('newest_games.parquet')
+blob.download_to_filename('newest_games.parquet')
+df_today = pl.read_parquet('newest_games.parquet').drop('game_id')
+#df_today = data_wrangling.newest_games(
+#    st.session_state['connection'],
+#    st.session_state['model']
+#).drop('game_id')
 st.dataframe(
     df_today,
     column_config={
