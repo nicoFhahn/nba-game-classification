@@ -22,7 +22,7 @@ mod = st.session_state['model']
 blob = mod.bucket.blob('performance_df.parquet')
 blob.download_to_filename('performance_df.parquet')
 performance_df = pl.read_parquet('performance_df.parquet')
-#mod.evaluate_performance()
+mod.evaluate_performance()
 #team_df = team_df = data_collection.collect_all_data('team_details', st.session_state['connection'])
 #performance_df = mod.performance['by_team']
 #performance_df = performance_df.join(
