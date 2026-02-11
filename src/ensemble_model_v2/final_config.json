@@ -1,0 +1,12 @@
+{
+  "n_trials": 500,
+  "max_estimators": 2000,
+  "threshold_metric": "accuracy",
+  "n_jobs_optuna": 1,
+  "random_state": 2343242,
+  "best_threshold": 0.51,
+  "final_roc_auc": 0.7343761535622002,
+  "final_accuracy": 0.6747352496217852,
+  "final_f1": 0.695898161244696,
+  "final_log_loss": 0.604902523969745
+}

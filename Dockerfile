@@ -1,20 +1,32 @@
-FROM python:3.12-slim
-WORKDIR /app
+# Use a slim Python base image
+FROM python:3.10-slim
 
+# 1. Install system dependencies
+# We add libgomp1 for LightGBM/XGBoost/Catboost
+# We keep chromium/chromium-driver for Selenium
 RUN apt-get update && apt-get install -y \
-    build-essential \
-    curl \
-    software-properties-common \
-    git \
+    wget \
+    gnupg \
+    unzip \
+    chromium \
+    chromium-driver \
+    libgomp1 \
     && rm -rf /var/lib/apt/lists/*
 
-RUN git clone https://github.com/nicoFhahn/nba-game-classification.git .
-RUN pip3 install -U pip
-RUN pip3 install -r requirements.txt
-RUN pip3 uninstall --yes streamlit
-RUN pip3 install streamlit-nightly --upgrade
-EXPOSE 8080
+# 2. Install uv for fast package management
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
-HEALTHCHECK CMD curl --fail http://localhost:8080/_stcore/health
+# 3. Set the working directory
+WORKDIR /app
 
-ENTRYPOINT ["streamlit", "run", "streamlit/Home.py", "--server.port=8080", "--server.address=0.0.0.0"]
+# 4. Copy requirements and install dependencies
+# Using --system to install into the image's global python
+COPY requirements.txt .
+RUN uv pip install --no-cache --system -r requirements.txt
+
+# 5. Copy EVERYTHING (scripts, json, and ensemble_model folder)
+COPY . .
+
+# 6. Set the entry point to your main script
+CMD ["python", "daily_bbref_nb.py"]
+

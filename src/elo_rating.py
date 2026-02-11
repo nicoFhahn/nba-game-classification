@@ -1,8 +1,23 @@
-from typing import Union
-
+from typing import Union, List
 import polars as pl
 
-from data_wrangling import get_team_schedules
+def get_team_schedules(
+        df: pl.DataFrame
+) -> List[pl.DataFrame]:
+    """
+    Gets individual schedules for all the teams
+    :param df: A seasons schedule
+    :return: A list containing each teams games / schedule
+    """
+    team_ids = sorted(list(set(df['home_team_id']).union(set(df['guest_team_id']))))
+    team_schedules = [
+        df.filter(
+            (pl.col('home_team_id') == team_id) |
+            (pl.col('guest_team_id') == team_id)
+        ).sort('date')
+        for team_id in team_ids
+    ]
+    return team_schedules
 
 
 def expected_outcome(
@@ -47,7 +62,7 @@ def elo_season(
     :return: df containing the elo before and after each game for each team
     """
     elo_ratings = {}
-    team_ids = list(set(df['home_team_id']))
+    team_ids = sorted(list(set(df['home_team_id'])))
 
     if isinstance(initial_elo, int):
         for team in team_ids:
@@ -61,22 +76,22 @@ def elo_season(
         for row in initial_elo.iter_rows():
             elo_ratings[row[0]] = [row[1]]
     for row in df.iter_rows():
-        home_team = row[8]
-        away_team = row[9]
+        home_team = row[3]
+        away_team = row[4]
         elo_home = elo_ratings[home_team][-1]
         elo_away = elo_ratings[away_team][-1]
         elo_home_adjusted = elo_home + home_court_advantage
         expected_home = expected_outcome(elo_home_adjusted, elo_away)
         expected_away = expected_outcome(elo_away, elo_home_adjusted)
-        margin_of_victory = abs(row[0] - row[1])
-        underdog_victory = ((elo_home_adjusted > elo_away) & (row[0] < row[1])) | (
-                    (elo_home_adjusted < elo_away) & (row[0] > row[1]))
+        margin_of_victory = abs(row[5] - row[6])
+        underdog_victory = ((elo_home_adjusted > elo_away) & (row[5] < row[6])) | (
+                    (elo_home_adjusted < elo_away) & (row[5] > row[6]))
         if underdog_victory:
             elo_diff = -1 * abs(elo_home_adjusted - elo_away)
         else:
             elo_diff = abs(elo_home_adjusted - elo_away)
         mov_multi = mov_multiplier(margin_of_victory, elo_diff)
-        if row[0] > row[1]:
+        if row[5] > row[6]:
             result_home, result_away = 1, 0
         else:
             result_home, result_away = 0, 1

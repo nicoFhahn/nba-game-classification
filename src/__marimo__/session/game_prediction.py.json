@@ -1,0 +1,165 @@
+{
+  "version": "1",
+  "metadata": {
+    "marimo_version": "0.19.7"
+  },
+  "cells": [
+    {
+      "id": "Hbol",
+      "code_hash": "784ff4172547a62998a780c80d2134d5",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/plain": ""
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "uNGY",
+      "code_hash": "8ff79865af8438f61183524ae0eadb53",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/plain": ""
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "lJhH",
+      "code_hash": "bcc19ed3f07bb339b50a661aaf0a7510",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/plain": ""
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "ArcC",
+      "code_hash": "7cf33f1d9b12f25b053672794a21a4f5",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/plain": ""
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "wCks",
+      "code_hash": "27351447d0c37a324810332fe08d5454",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/plain": ""
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "efun",
+      "code_hash": "2cdfc19cff7f94faf53709cc947fb2bf",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/plain": ""
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "dkNg",
+      "code_hash": "01c319484400ffe3b29cf0b700d89d1f",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/plain": ""
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "uHPg",
+      "code_hash": "a7a488e155c18553cde37191a4b3fa70",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/plain": ""
+          }
+        }
+      ],
+      "console": [
+        {
+          "type": "stream",
+          "name": "stdout",
+          "text": "\nLoading pipeline from: ensemble_model_v2\n\u2713 Ensemble loaded\n\u2713 5 individual models loaded\n\u2713 Best parameters loaded\n\u2713 Configuration loaded (threshold: 0.5100)\n",
+          "mimetype": "text/plain"
+        }
+      ]
+    },
+    {
+      "id": "Wpcr",
+      "code_hash": "9c35594180114e4d9698a2484335caaa",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/plain": ""
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "qWED",
+      "code_hash": "f84a6d11a544f96315584d72dc30113e",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/html": "<marimo-ui-element object-id='qWED-0' random-id='324bc1e0-c029-a27e-ea37-6d31f7831d7d'><marimo-table data-initial-value='[]' data-label='null' data-data='&quot;[{&#92;&quot;game_id&#92;&quot;:&#92;&quot;20260209MIA&#92;&quot;,&#92;&quot;home_team&#92;&quot;:&#92;&quot;Miami Heat&#92;&quot;,&#92;&quot;guest_team&#92;&quot;:&#92;&quot;Utah Jazz&#92;&quot;,&#92;&quot;is_home_win&#92;&quot;:null,&#92;&quot;proba&#92;&quot;:0.7997798305697679,&#92;&quot;is_predicted_home_win&#92;&quot;:true,&#92;&quot;date&#92;&quot;:&#92;&quot;2026-02-09&#92;&quot;},{&#92;&quot;game_id&#92;&quot;:&#92;&quot;20260209MIN&#92;&quot;,&#92;&quot;home_team&#92;&quot;:&#92;&quot;Minnesota Timberwolves&#92;&quot;,&#92;&quot;guest_team&#92;&quot;:&#92;&quot;Atlanta Hawks&#92;&quot;,&#92;&quot;is_home_win&#92;&quot;:null,&#92;&quot;proba&#92;&quot;:0.6186247521194012,&#92;&quot;is_predicted_home_win&#92;&quot;:true,&#92;&quot;date&#92;&quot;:&#92;&quot;2026-02-09&#92;&quot;},{&#92;&quot;game_id&#92;&quot;:&#92;&quot;20260210NYK&#92;&quot;,&#92;&quot;home_team&#92;&quot;:&#92;&quot;New York Knicks&#92;&quot;,&#92;&quot;guest_team&#92;&quot;:&#92;&quot;Indiana Pacers&#92;&quot;,&#92;&quot;is_home_win&#92;&quot;:null,&#92;&quot;proba&#92;&quot;:0.8130069453461666,&#92;&quot;is_predicted_home_win&#92;&quot;:true,&#92;&quot;date&#92;&quot;:&#92;&quot;2026-02-10&#92;&quot;},{&#92;&quot;game_id&#92;&quot;:&#92;&quot;20260210HOU&#92;&quot;,&#92;&quot;home_team&#92;&quot;:&#92;&quot;Houston Rockets&#92;&quot;,&#92;&quot;guest_team&#92;&quot;:&#92;&quot;Los Angeles Clippers&#92;&quot;,&#92;&quot;is_home_win&#92;&quot;:null,&#92;&quot;proba&#92;&quot;:0.5962287488548724,&#92;&quot;is_predicted_home_win&#92;&quot;:true,&#92;&quot;date&#92;&quot;:&#92;&quot;2026-02-10&#92;&quot;}]&quot;' data-total-rows='4' data-total-columns='7' data-max-columns='50' data-banner-text='&quot;&quot;' data-pagination='true' data-page-size='10' data-field-types='[[&quot;game_id&quot;,[&quot;string&quot;,&quot;str&quot;]],[&quot;home_team&quot;,[&quot;string&quot;,&quot;str&quot;]],[&quot;guest_team&quot;,[&quot;string&quot;,&quot;str&quot;]],[&quot;is_home_win&quot;,[&quot;boolean&quot;,&quot;bool&quot;]],[&quot;proba&quot;,[&quot;number&quot;,&quot;f64&quot;]],[&quot;is_predicted_home_win&quot;,[&quot;boolean&quot;,&quot;bool&quot;]],[&quot;date&quot;,[&quot;string&quot;,&quot;str&quot;]]]' data-show-filters='true' data-show-download='true' data-show-column-summaries='false' data-show-data-types='true' data-show-page-size-selector='false' data-show-column-explorer='true' data-show-chart-builder='true' data-row-headers='[]' data-has-stable-row-id='false' data-lazy='false' data-preload='false'></marimo-table></marimo-ui-element>"
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "Hupz",
+      "code_hash": "4d560910b5492018ff28ad5cb82455b2",
+      "outputs": [
+        {
+          "type": "error",
+          "ename": "exception",
+          "evalue": "{'message': 'duplicate key value violates unique constraint \"predictions_pkey\"', 'code': '23505', 'hint': None, 'details': 'Key (game_id)=(20260209MIA) already exists.'}",
+          "traceback": []
+        }
+      ],
+      "console": [
+        {
+          "type": "stream",
+          "name": "stderr",
+          "text": "<span class=\"codehilite\"><div class=\"highlight\"><pre><span></span><span class=\"gt\">Traceback (most recent call last):</span>\n  File <span class=\"nb\">&quot;/var/folders/vx/1_rwj5jj42l0fq65b36nqnrm0000gn/T/marimo_15744/__marimo__cell_Hupz_.py&quot;</span>, line <span class=\"m\">3</span>, in <span class=\"n\">&lt;module&gt;</span>\n<span class=\"w\">    </span><span class=\"p\">)</span><span class=\"o\">.</span><span class=\"n\">execute</span><span class=\"p\">()</span>\n<span class=\"w\">      </span><span class=\"pm\">^^^^^^^^^</span>\n  File <span class=\"nb\">&quot;/Users/nicohahn/Documents/nba-game-classification/.venv/lib/python3.12/site-packages/postgrest/_sync/request_builder.py&quot;</span>, line <span class=\"m\">64</span>, in <span class=\"n\">execute</span>\n<span class=\"w\">    </span><span class=\"k\">raise</span> <span class=\"n\">APIError</span><span class=\"p\">(</span><span class=\"nb\">dict</span><span class=\"p\">(</span><span class=\"n\">json_obj</span><span class=\"p\">))</span>\n<span class=\"gr\">postgrest.exceptions.APIError</span>: <span class=\"n\">{&#39;message&#39;: &#39;duplicate key value violates unique constraint &quot;predictions_pkey&quot;&#39;, &#39;code&#39;: &#39;23505&#39;, &#39;hint&#39;: None, &#39;details&#39;: &#39;Key (game_id)=(20260209MIA) already exists.&#39;}</span>\n</pre></div>\n</span>",
+          "mimetype": "application/vnd.marimo+traceback"
+        }
+      ]
+    }
+  ]
+}
