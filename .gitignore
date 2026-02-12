@@ -2,3 +2,8 @@
 myenv
 *.ipynb
 todos.txt
+**/__marimo__/
+src/__marimo__/
+**/__pycache__/
+*.pyc
+.DS_Store

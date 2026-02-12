@@ -44,60 +44,54 @@ def _(create_client, json, secretmanager):
 
 
 @app.cell
-def _(driver):
-    driver.get("https://www.basketball-reference.com/boxscores/201410280LAL.html")
-    return
-
-
-@app.cell
 def _(By):
-    def scrape_player_stats(table_id, driver):
+    def scrape_table_stats(table_id, driver):
         table = driver.find_element(By.ID, table_id)
-    
+
         # Get column names from thead
         thead = table.find_element(By.TAG_NAME, "thead")
         thead_rows = thead.find_elements(By.TAG_NAME, "tr")
         header_cells = thead_rows[1].find_elements(By.TAG_NAME, "th")[1:]
         column_names = [cell.get_attribute("data-stat") for cell in header_cells]
-    
+
         # Get team stats from tfoot
         tfoot = table.find_element(By.TAG_NAME, "tfoot")
         tfoot_rows = tfoot.find_elements(By.TAG_NAME, "tr")
         stat_cells = tfoot_rows[0].find_elements(By.TAG_NAME, "td")
         stat_values = [cell.text.strip() for cell in stat_cells]
         team_stats = dict(zip(column_names, stat_values))
-    
+
         # Get player stats from tbody
         tbody = table.find_element(By.TAG_NAME, "tbody")
         player_rows = tbody.find_elements(By.TAG_NAME, "tr")
-    
+
         players_stats = []
         for row in player_rows:
             # Skip rows that don't have the standard structure (e.g., section headers)
             if not row.find_elements(By.TAG_NAME, "td"):
                 continue
-            
+
             # Get player_id and player_name from the first th element
             first_th = row.find_element(By.TAG_NAME, "th")
             player_id = first_th.get_attribute("data-append-csv")
             player_name = first_th.text.strip()
-        
+
             # Get all stat values from td elements
             stat_cells = row.find_elements(By.TAG_NAME, "td")
             stat_values = [cell.text.strip() for cell in stat_cells]
-        
+
             # Create player stats dict
             player_stats = dict(zip(column_names, stat_values))
             player_stats['player_id'] = player_id
             player_stats['player_name'] = player_name
-        
+
             players_stats.append(player_stats)
-    
+
         return {
             'team_stats': team_stats,
             'players_stats': players_stats
         }
-    return
+    return (scrape_table_stats,)
 
 
 @app.cell
@@ -149,7 +143,7 @@ def _(
         guest_id_advanced = f"box-{row["guest_abbrev"]}-game-advanced"
         max_retries = 3
         retry_delay = 1800  # seconds
-    
+
         for attempt in range(max_retries):
             try:
                 driver.get(row["game_url"])
@@ -161,7 +155,7 @@ def _(
                 else:
                     print(f"Failed to load {game_url} after {max_retries} attempts")
                     raise  # Re-raise the exception after all retries exhausted
-    
+
         wait = WebDriverWait(driver, 10)
         wait.until(EC.presence_of_element_located((By.ID, home_id_basic)))
         wait.until(EC.presence_of_element_located((By.ID, guest_id_basic)))
@@ -228,18 +222,6 @@ def _(
             ])
         supabase.table("player-boxscore").insert(res_df.to_dicts()).execute()
         # time.sleep(2)
-    return driver, res_home_basic_df
-
-
-@app.cell
-def _(res_home_basic_df):
-    res_home_basic_df
-    return
-
-
-@app.cell
-def _(res_guest_basic_df2):
-    res_guest_basic_df2
     return
 
 

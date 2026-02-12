@@ -1,1 +1,0 @@
-{"iterations": 323, "learning_rate": 0.04881369979725608, "min_child_weight": 1.8680501654075234, "subsample": 0.6300525621764501, "colsample_bytree": 0.6520220529434155, "verbose": -1, "metric": null, "objective": "binary", "random_state": 7918, "first_metric_only": true}
