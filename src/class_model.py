@@ -36,7 +36,7 @@ def _():
 
 
 @app.cell
-def _(create_client, fetch_entire_table, json, secretmanager):
+def _(create_client, fetch_entire_table, json, pl, secretmanager):
     name = "projects/898760610238/secrets/supabase/versions/2"
     client = secretmanager.SecretManagerServiceClient()
     g_response = client.access_secret_version(request={"name": name})
@@ -47,22 +47,38 @@ def _(create_client, fetch_entire_table, json, secretmanager):
     supabase=create_client(url, key)
     schedule = fetch_entire_table(supabase, "schedule")
     games = fetch_entire_table(supabase, "boxscore")
+    player_boxscore = fetch_entire_table(supabase, "player-boxscore")
     elo = fetch_entire_table(supabase, "elo")
+    playoffs = fetch_entire_table(supabase, "playoffs")
+    locations = fetch_entire_table(supabase, "location")
     schedule = schedule.join(
         games,
         on="game_id"
+    ).join(
+        locations,
+        on="arena"
+    ).join(
+        playoffs,
+        on="season_id"
+    ).with_columns(
+        pl.col("date").str.to_date(),
+        pl.col("playoff_start").str.to_date()
+    ).with_columns(
+        (pl.col("date") >= pl.col("playoff_start")).alias("is_playoff_game")
     )
-    return elo, games, schedule, supabase
+    return elo, games, player_boxscore, schedule, supabase
 
 
 @app.cell
-def _(features, games, pl, schedule, tqdm):
+def _(features, games, pl, player_boxscore, schedule, tqdm):
     final_data = []
-    for s in tqdm(set(schedule["season_id"])):
+    # for s in tqdm(set(schedule["season_id"])):
+    for s in tqdm([2015, 2016]):
         season_schedule = schedule.filter(
             pl.col("season_id") == s
         ).sort("date").select([
-            "game_id", "date", "home_team", "guest_team", "pts_home", "pts_guest"
+            "game_id", "date", "home_team", "guest_team", "pts_home", "pts_guest", "is_playoff_game",
+            "latitude", "longitude"
         ]).with_columns([
             (pl.col("pts_home") > pl.col("pts_guest")).alias("is_home_win")
         ])
@@ -71,8 +87,6 @@ def _(features, games, pl, schedule, tqdm):
         ).join(
             games,
             on="game_id"
-        ).with_columns(
-            pl.col("date").str.to_date()
         )
         teams = set(season_games["home_team"])
         boxscore_dfs = [features.team_boxscores(season_games, team) for team in teams]
@@ -80,10 +94,11 @@ def _(features, games, pl, schedule, tqdm):
         season_schedule = features.add_overall_winning_pct(season_schedule)
         season_schedule = features.add_location_winning_pct(season_schedule)
         season_schedule = features.h2h(season_schedule)
+        season_schedule = features.compute_travel(season_schedule)
         team_stats = pl.concat(team_stats)
         joined = season_schedule.drop([
             "date", "pts_home", "pts_guest",
-            "home_win", "guest_win"
+            "home_win", "guest_win", "latitude", "longitude"
         ]).join(
             team_stats.drop(["date", "is_win"]).rename(
                 lambda c: f"{c}_home"
@@ -97,21 +112,55 @@ def _(features, games, pl, schedule, tqdm):
             left_on=["game_id", "guest_team"],
             right_on=["game_id_guest", "team_guest"]
         )
+        season_boxscore = schedule[["game_id", "season_id"]].join(
+            player_boxscore,
+            on="game_id"
+        ).filter(
+            pl.col("season_id") == s
+        )
+        season_boxscores = season_boxscore.partition_by("team_id")
+        season_player_stats = [features.player_season_stats(boxscore) for boxscore in season_boxscores]
+        season_expected_stats = [features.calculate_expected_team_stats(sps) for sps in season_player_stats]
+        joined = joined.join(
+            pl.concat(season_expected_stats).drop("num_players").rename(
+                lambda c: f"{c}_home_team"
+            ),
+            left_on=["game_id", "home_team"],
+            right_on=["game_id_home_team", "team_id_home_team"],
+            how="left"
+        ).join(
+            pl.concat(season_expected_stats).drop("num_players").rename(
+                lambda c: f"{c}_guest_team"
+            ),
+            left_on=["game_id", "guest_team"],
+            right_on=["game_id_guest_team", "team_id_guest_team"],
+            how="left"
+        )
         final_data.append(joined)
     return (final_data,)
 
 
 @app.cell
 def _(elo, final_data, pl, schedule):
+    elo_w_change = elo.with_columns(
+        pl.col("elo_before").shift(7).over(pl.col("team_id")).alias("elo_7_games_before")
+    ).with_columns(
+        (pl.col("elo_before") - pl.col("elo_7_games_before")).alias("elo_change_7_absolute"),
+        (pl.col("elo_before") / pl.col("elo_7_games_before") - 1).alias("elo_change_7_relative")
+    ).drop("elo_7_games_before")
     df = pl.concat(final_data).join(
-        elo.select("game_id", "team_id", "elo_before").rename({
-            "elo_before": "elo_home"
+        elo_w_change.drop("id", "elo_after").rename({
+            "elo_before": "elo_home",
+            "elo_change_7_absolute": "elo_change_7_absolute_home",
+            "elo_change_7_relative": "elo_change_7_relative_home"
         }),
         left_on=["game_id", "home_team"],
         right_on=["game_id", "team_id"]
     ).join(
-        elo.select("game_id", "team_id", "elo_before").rename({
-            "elo_before": "elo_guest"
+        elo_w_change.drop("id", "elo_after").rename({
+            "elo_before": "elo_guest",
+            "elo_change_7_absolute": "elo_change_7_absolute_guest",
+            "elo_change_7_relative": "elo_change_7_relative_guest"
         }),
         left_on=["game_id", "guest_team"],
         right_on=["game_id", "team_id"]

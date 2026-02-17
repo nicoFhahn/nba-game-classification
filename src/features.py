@@ -510,3 +510,524 @@ def team_season_stats(df, window_sizes = [7, 109]):
     ]
     df=df.with_columns(new_cols)
     return df
+
+
+"""
+Expected Team Statistics Calculator - Full Enhanced Polars Implementation
+
+Calculates expected team stats PLUS advanced performance indicators:
+- Roster quality counts (plus/minus thresholds)
+- Consistency metrics (variance/volatility)
+- Form indicators (hot/cold streaks)
+- Depth quality metrics
+- Risk/uncertainty measures
+"""
+
+import polars as pl
+from typing import List
+
+
+def calculate_expected_team_stats(
+        df: pl.DataFrame,
+        top_n_players: int = 8
+) -> pl.DataFrame:
+    """
+    Calculate expected team statistics with advanced performance indicators.
+
+    Args:
+        df: Polars DataFrame with columns:
+            - game_id, player_id, team_id
+            - {stat}_previous_game, {stat}_7, {stat}_109 for each stat
+            - {stat}_7_std, {stat}_109_std (standard deviations)
+            - mp_7 (average minutes from last 7 games)
+            - plus_minus_109 (season average plus/minus)
+        top_n_players: Number of top players to include (default: 8)
+
+    Returns:
+        Polars DataFrame with:
+        - Expected team statistics (22 features)
+        - Plus/minus player counts (6 features)
+        - Performance indicators (15+ features)
+    """
+
+    # Define statistics
+    counting_stats = [
+        "fg", "fga", "fg3", "fg3a", "ft", "fta",
+        "orb", "drb", "trb", "ast", "stl", "blk", "tov", "pts"
+    ]
+    rate_stats = ["game_score", "plus_minus", "off_rtg", "def_rtg", "bpm"]
+    all_stats = counting_stats + rate_stats
+
+    # Weights: 15% last game, 35% last 7, 50% season
+    W_LAST = 0.15
+    W_SEVEN = 0.35
+    W_SEASON = 0.50
+
+    # Filter players with minutes data
+    df_filtered = df.filter(pl.col("mp_7").is_not_null())
+
+    # Calculate weighted stats
+    weighted_exprs = [
+        (
+                W_LAST * pl.col(f"{stat}_previous_game").fill_null(0) +
+                W_SEVEN * pl.col(f"{stat}_7").fill_null(0) +
+                W_SEASON * pl.col(f"{stat}_109").fill_null(0)
+        ).alias(f"{stat}_weighted")
+        for stat in all_stats
+    ]
+
+    df_weighted = df_filtered.with_columns([
+        *weighted_exprs,
+        pl.col("mp_7").alias("expected_minutes")
+    ])
+
+    # Select top N players per game by minutes
+    df_top = (
+        df_weighted
+        .sort("mp_7", descending=True)
+        .group_by("game_id")
+        .agg([
+            pl.col("team_id").first(),
+            pl.col("player_id").head(top_n_players),
+            *[pl.col(f"{stat}_weighted").head(top_n_players) for stat in all_stats],
+            pl.col("expected_minutes").head(top_n_players),
+            pl.col("mp_7").head(top_n_players),
+            # Add standard deviations for consistency metrics
+            *[pl.col(f"{stat}_7_std").head(top_n_players) for stat in
+              ["pts", "off_rtg", "def_rtg", "plus_minus"]],
+            # Add recent vs season for form indicators
+            *[pl.col(f"{stat}_7").head(top_n_players) for stat in
+              ["pts", "off_rtg", "plus_minus"]],
+            *[pl.col(f"{stat}_109").head(top_n_players) for stat in
+              ["pts", "off_rtg", "plus_minus"]],
+        ])
+    )
+
+    # Explode to player-game level
+    explode_cols = [
+        "player_id",
+        *[f"{stat}_weighted" for stat in all_stats],
+        "expected_minutes",
+        "mp_7",
+        "pts_7_std", "off_rtg_7_std", "def_rtg_7_std", "plus_minus_7_std",
+        "pts_7", "off_rtg_7", "plus_minus_7",
+        "pts_109", "off_rtg_109", "plus_minus_109",
+    ]
+    df_exploded = df_top.explode(explode_cols)
+
+    # Build aggregation expressions
+    agg_exprs = [
+        pl.col("team_id").first(),
+        pl.col("player_id").count().alias("num_players"),
+    ]
+
+    # Counting stats: scale by expected minutes
+    for stat in counting_stats:
+        agg_exprs.append(
+            (pl.col(f"{stat}_weighted") * pl.col("expected_minutes") / pl.col("mp_7"))
+            .sum()
+            .alias(f"exp_{stat}")
+        )
+
+    # Rate stats: minutes-weighted average
+    total_minutes = pl.col("expected_minutes").sum()
+    for stat in rate_stats:
+        agg_exprs.append(
+            ((pl.col(f"{stat}_weighted") * pl.col("expected_minutes")).sum() / total_minutes)
+            .alias(f"exp_{stat}")
+        )
+
+    # CONSISTENCY METRICS: Average variance across top players
+    agg_exprs.extend([
+        # How consistent are players' scoring?
+        ((pl.col("pts_7_std") * pl.col("expected_minutes")).sum() / total_minutes)
+        .alias("avg_pts_volatility"),
+
+        # How consistent is offensive performance?
+        ((pl.col("off_rtg_7_std") * pl.col("expected_minutes")).sum() / total_minutes)
+        .alias("avg_off_rtg_volatility"),
+
+        # How consistent is defensive performance?
+        ((pl.col("def_rtg_7_std") * pl.col("expected_minutes")).sum() / total_minutes)
+        .alias("avg_def_rtg_volatility"),
+
+        # How consistent is plus/minus?
+        ((pl.col("plus_minus_7_std") * pl.col("expected_minutes")).sum() / total_minutes)
+        .alias("avg_plus_minus_volatility"),
+    ])
+
+    # FORM INDICATORS: Recent performance vs season baseline
+    agg_exprs.extend([
+        # Are players scoring more/less than their season average?
+        ((pl.col("pts_7") - pl.col("pts_109")) * pl.col("expected_minutes")).sum()
+        .alias("pts_recent_vs_season"),
+
+        # Is offensive rating trending up/down?
+        (((pl.col("off_rtg_7") - pl.col("off_rtg_109")) * pl.col("expected_minutes")).sum() / total_minutes)
+        .alias("off_rtg_recent_vs_season"),
+
+        # Is plus/minus trending up/down?
+        (((pl.col("plus_minus_7") - pl.col("plus_minus_109")) * pl.col("expected_minutes")).sum() / total_minutes)
+        .alias("plus_minus_recent_vs_season"),
+    ])
+
+    result = df_exploded.group_by("game_id").agg(agg_exprs)
+
+    # Calculate shooting percentages
+    result = result.with_columns([
+        (pl.col("exp_fg") / pl.col("exp_fga")).alias("exp_fg_pct"),
+        (pl.col("exp_fg3") / pl.col("exp_fg3a")).alias("exp_fg3_pct"),
+        (pl.col("exp_ft") / pl.col("exp_fta")).alias("exp_ft_pct")
+    ])
+
+    # Add plus/minus player counts
+    result = add_plus_minus_counts(df_filtered, result)
+
+    # Add advanced performance indicators
+    result = add_advanced_indicators(df_filtered, result)
+
+    return result.sort("game_id")
+
+
+def add_plus_minus_counts(
+        df_filtered: pl.DataFrame,
+        result: pl.DataFrame
+) -> pl.DataFrame:
+    """Add player count features based on plus_minus_109 thresholds."""
+
+    thresholds = [0, 2, 4, 6, 8, 10]
+
+    pm_counts = df_filtered.group_by("game_id").agg([
+        pl.col("team_id").first(),
+        *[(pl.col("plus_minus_109").fill_null(-999) >= threshold)
+          .sum()
+          .alias(f"players_pm109_gte_{threshold}")
+          for threshold in thresholds]
+    ])
+
+    result = result.join(pm_counts, on="game_id", how="left")
+
+    if "team_id_right" in result.columns:
+        result = result.drop("team_id_right")
+
+    return result
+
+
+def add_advanced_indicators(
+        df_filtered: pl.DataFrame,
+        result: pl.DataFrame
+) -> pl.DataFrame:
+    """
+    Add advanced performance indicators:
+    - Minutes concentration (reliance on few players)
+    - Depth quality (average quality of bench players)
+    - Experience/continuity (stability of rotation)
+    - Momentum indicators
+    """
+
+    # Calculate per-game indicators
+    advanced = df_filtered.group_by("game_id").agg([
+        pl.col("team_id").first(),
+
+        # MINUTES CONCENTRATION
+        # Gini coefficient approximation: how evenly distributed are minutes?
+        # Lower = more balanced rotation, Higher = star-dependent
+        (pl.col("mp_7").std() / (pl.col("mp_7").mean() + 0.01))
+        .alias("minutes_concentration"),
+
+        # Top 3 players' share of total minutes
+        (pl.col("mp_7").top_k(3).sum() / pl.col("mp_7").sum())
+        .alias("top3_minutes_share"),
+
+        # DEPTH QUALITY
+        # Average plus/minus of players outside top 5
+        (pl.when(pl.col("mp_7").rank(descending=True) > 5)
+         .then(pl.col("plus_minus_109"))
+         .otherwise(None)
+         .mean())
+        .alias("bench_avg_plus_minus"),
+
+        # Number of rotation players (>10 min avg)
+        (pl.col("mp_7") >= 10.0).sum().alias("rotation_size"),
+
+        # MOMENTUM/FORM INDICATORS
+        # How many players are hot? (recent > season avg)
+        ((pl.col("pts_7").fill_null(0) > pl.col("pts_109").fill_null(0)).sum())
+        .alias("players_scoring_hot"),
+
+        # How many players trending positive in plus/minus?
+        ((pl.col("plus_minus_7").fill_null(-999) > pl.col("plus_minus_109").fill_null(-999)).sum())
+        .alias("players_trending_positive"),
+
+        # CONSISTENCY/RISK
+        # Average consistency (inverse of std) across all available players
+        (1.0 / (pl.col("pts_7_std").fill_null(99).mean() + 0.1))
+        .alias("team_consistency_score"),
+
+        # Percentage of players with high volatility (std > mean)
+        ((pl.col("pts_7_std").fill_null(0) > pl.col("pts_7").fill_null(0)).sum() / pl.count())
+        .alias("high_volatility_player_pct"),
+    ])
+
+    result = result.join(advanced, on="game_id", how="left")
+
+    if "team_id_right" in result.columns:
+        result = result.drop("team_id_right")
+
+    return result
+
+
+def prepare_home_away_features(
+        home_df: pl.DataFrame,
+        away_df: pl.DataFrame,
+        game_id: str
+) -> pl.DataFrame:
+    """Prepare home/away features for a single game."""
+
+    home_stats = calculate_expected_team_stats(home_df)
+    away_stats = calculate_expected_team_stats(away_df)
+
+    home_game = home_stats.filter(pl.col("game_id") == game_id)
+    away_game = away_stats.filter(pl.col("game_id") == game_id)
+
+    exclude_cols = ["game_id", "team_id"]
+
+    home_game = home_game.select([
+        pl.col("game_id"),
+        *[pl.col(col).alias(f"home_{col}")
+          for col in home_game.columns if col not in exclude_cols]
+    ])
+
+    away_game = away_game.select([
+        pl.col("game_id"),
+        *[pl.col(col).alias(f"away_{col}")
+          for col in away_game.columns if col not in exclude_cols]
+    ])
+
+    return home_game.join(away_game, on="game_id")
+
+def player_season_stats(df, window_sizes = [7, 109]):
+    absolute_columns = [
+        "mp", "fg", "fga", "fg3", "fg3a", "ft", "fta", "orb", "drb",
+        "trb", "ast", "stl", "blk", "tov", "pts", "game_score",
+        "plus_minus"
+    ]
+    per_100_columns = ["off_rtg", "def_rtg", "bpm"]
+    relative_columns = [
+        "fg_pct", "fg3_pct", "ft_pct", "orb_pct", "drb_pct", "trb_pct",
+        "ast_pct", "stl_pct", "blk_pct", "usg_pct", "fg3a_per_fga_pct",
+        "fta_per_fga_pct", "tov_pct"
+    ]
+    dropped_cols = ["ts_pct", "efg_pct", "pf"]
+    df = df.drop(["id", "player_name"]).with_columns([
+        pl.col(c).shift(1).over(pl.col("player_id")).alias(f'{c}_previous_game')
+        for c in absolute_columns + per_100_columns
+    ]).with_columns([
+        expr
+        for ws in window_sizes
+        for expr in [
+            pl.col(f'{c}_previous_game').rolling_mean(
+                window_size=ws, min_samples=1 if (ws >= 109 or c == "mp") else ws
+            ).over(pl.col("player_id")).alias(f'{c}_{ws}')
+            for c in absolute_columns + per_100_columns
+        ] + [
+            pl.col(f'{c}_previous_game').ewm_mean(
+                span=ws, min_periods=1 if ws >= 109 else ws
+            ).over(pl.col("player_id")).alias(f'{c}_ewm_{ws}')
+            for c in absolute_columns + per_100_columns
+        ] + [
+            pl.col(f'{c}_previous_game').rolling_std(
+                window_size=ws, min_samples=1 if ws >= 109 else ws
+            ).over(pl.col("player_id")).alias(f'{c}_{ws}_std')
+            for c in absolute_columns + per_100_columns
+        ]
+    ]).drop(
+        absolute_columns + per_100_columns + relative_columns +
+        dropped_cols
+    )
+    return df
+
+"""
+NBA Travel Distance Calculator
+================================
+For each game, computes for both the home team and the guest team:
+  - km_since_last_game  : distance (km) traveled from the location of their
+                          previous game to the current game venue
+  - km_last_7_days      : total distance (km) traveled in the 7-day window
+                          ending on (and including) the current game date
+  - km_season_total     : cumulative distance (km) traveled since the start
+                          of the season up to and including this game
+
+Travel model
+------------
+A team travels TO the location of each game.  Because the CSV only records
+game venues (not team home arenas), the very first game for every team has
+km_since_last_game = 0 (no prior location known).
+
+Haversine formula is used for all distances.
+
+Usage
+-----
+    python nba_travel.py                          # prints first 20 rows
+    python nba_travel.py --output results.csv     # saves full results to CSV
+"""
+
+import math
+import argparse
+from datetime import timedelta
+
+import polars as pl
+
+
+# ---------------------------------------------------------------------------
+# Haversine helper
+# ---------------------------------------------------------------------------
+
+def haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    """Return the great-circle distance in km between two (lat, lon) points."""
+    R = 6_371.0  # Earth radius in km
+    phi1, phi2 = math.radians(lat1), math.radians(lat2)
+    dphi = math.radians(lat2 - lat1)
+    dlam = math.radians(lon2 - lon1)
+    a = math.sin(dphi / 2) ** 2 + math.cos(phi1) * math.cos(phi2) * math.sin(dlam / 2) ** 2
+    return 2 * R * math.asin(math.sqrt(a))
+
+
+# ---------------------------------------------------------------------------
+# Core computation
+# ---------------------------------------------------------------------------
+
+def compute_travel(df) -> pl.DataFrame:
+    """
+    Read the schedule CSV and return a DataFrame with travel metrics for both
+    home and guest teams attached to every row.
+
+    New columns added:
+        home_km_since_last_game
+        home_km_last_7_days
+        home_km_season_total
+        guest_km_since_last_game
+        guest_km_last_7_days
+        guest_km_season_total
+    """
+
+
+    # ------------------------------------------------------------------
+    # 2. Build a "team view": one row per (team, game) with the venue
+    #    they're playing AT (home or away).
+    # ------------------------------------------------------------------
+    home_view = df.select([
+        pl.col("game_id"),
+        pl.col("date"),
+        pl.col("home_team").alias("team"),
+        pl.col("latitude"),
+        pl.col("longitude"),
+    ])
+
+    guest_view = df.select([
+        pl.col("game_id"),
+        pl.col("date"),
+        pl.col("guest_team").alias("team"),
+        pl.col("latitude"),
+        pl.col("longitude"),
+    ])
+
+    team_games = (
+        pl.concat([home_view, guest_view])
+        .sort(["team", "date", "game_id"])
+    )
+
+    # ------------------------------------------------------------------
+    # 3. Compute per-team metrics using Python – Polars' lazy / native
+    #    window functions don't support arbitrary Haversine aggregations
+    #    over variable-length temporal windows, so we process each team
+    #    individually and collect results.
+    # ------------------------------------------------------------------
+    records: list[dict] = []
+
+    for team, group in team_games.group_by("team", maintain_order=True):
+        # group is already sorted by date because team_games is sorted
+        rows = group.sort(["date", "game_id"]).to_dicts()
+
+        season_total = 0.0
+
+        for i, row in enumerate(rows):
+            # --- distance since last game ---
+            if i == 0:
+                dist_last = 0.0
+            else:
+                prev = rows[i - 1]
+                dist_last = haversine_km(
+                    prev["latitude"], prev["longitude"],
+                    row["latitude"],  row["longitude"],
+                )
+
+            season_total += dist_last
+
+            # --- distance in last 7 days ---
+            cutoff = row["date"] - timedelta(days=7)
+            window_dist = 0.0
+            # Walk backwards to sum legs that fall within the 7-day window.
+            # A "leg" is attributed to the game you're travelling TO, so we
+            # look at all legs i where the destination date is within window.
+            for j in range(i, 0, -1):
+                dest_date = rows[j]["date"]
+                if dest_date < cutoff:
+                    break
+                prev_j = rows[j - 1]
+                leg = haversine_km(
+                    prev_j["latitude"], prev_j["longitude"],
+                    rows[j]["latitude"], rows[j]["longitude"],
+                )
+                window_dist += leg
+
+            records.append({
+                "game_id":           row["game_id"],
+                "team":              row["team"],
+                "km_since_last_game": round(dist_last, 2),
+                "km_last_7_days":    round(window_dist, 2),
+                "km_season_total":   round(season_total, 2),
+            })
+
+    travel = pl.DataFrame(records)
+
+    # ------------------------------------------------------------------
+    # 4. Join metrics back onto the original schedule
+    # ------------------------------------------------------------------
+    result = (
+        df
+        # home metrics
+        .join(
+            travel
+            .rename({
+                "team":              "home_team",
+                "km_since_last_game": "home_km_since_last_game",
+                "km_last_7_days":    "home_km_last_7_days",
+                "km_season_total":   "home_km_season_total",
+            })
+            .select(["game_id", "home_team",
+                     "home_km_since_last_game",
+                     "home_km_last_7_days",
+                     "home_km_season_total"]),
+            on=["game_id", "home_team"],
+            how="left",
+        )
+        # guest metrics
+        .join(
+            travel
+            .rename({
+                "team":              "guest_team",
+                "km_since_last_game": "guest_km_since_last_game",
+                "km_last_7_days":    "guest_km_last_7_days",
+                "km_season_total":   "guest_km_season_total",
+            })
+            .select(["game_id", "guest_team",
+                     "guest_km_since_last_game",
+                     "guest_km_last_7_days",
+                     "guest_km_season_total"]),
+            on=["game_id", "guest_team"],
+            how="left",
+        )
+    )
+
+    return result

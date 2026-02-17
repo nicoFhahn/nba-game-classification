@@ -16,7 +16,7 @@ def _():
     from tqdm import tqdm
 
     import features
-    from bbref import scrape_game, scrape_month, scrape_season, start_driver
+    from bbref import scrape_game, scrape_month, scrape_season, start_driver, scrape_missing_player_boxscores
     from elo_rating import elo_season
     from ml_pipeline import load_pipeline
     from supabase_helper import fetch_entire_table, fetch_filtered_table, fetch_month_data
@@ -34,6 +34,7 @@ def _():
         load_pipeline,
         pl,
         scrape_game,
+        scrape_missing_player_boxscores,
         scrape_month,
         secretmanager,
         start_driver,
@@ -154,6 +155,13 @@ def _(missing_games, scrape_game, start_driver, supabase, time, tqdm):
             )
 
         driver_2.quit()
+    return
+
+
+@app.cell
+def _(scrape_missing_player_boxscores, start_driver, supabase):
+    driver_3 = start_driver()
+    scrape_missing_player_boxscores(supabase, driver_3)
     return
 
 

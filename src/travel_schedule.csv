@@ -1,0 +1,1312 @@
+game_id,date,home_team,guest_team,latitude,longitude
+20141028NOP,2014-10-28,New Orleans Pelicans,Orlando Magic,29.949,-90.0821
+20141028SAS,2014-10-28,San Antonio Spurs,Dallas Mavericks,29.427,-98.4375
+20141028LAL,2014-10-28,Los Angeles Lakers,Houston Rockets,34.043,-118.2673
+20141029CHO,2014-10-29,Charlotte Hornets,Milwaukee Bucks,35.225,-80.8392
+20141029IND,2014-10-29,Indiana Pacers,Philadelphia 76ers,39.7639,-86.1555
+20141029TOR,2014-10-29,Toronto Raptors,Atlanta Hawks,43.6435,-79.379
+20141029MIA,2014-10-29,Miami Heat,Washington Wizards,25.7814,-80.187
+20141029BOS,2014-10-29,Boston Celtics,Brooklyn Nets,42.3663,-71.0622
+20141029NYK,2014-10-29,New York Knicks,Chicago Bulls,40.7505,-73.9934
+20141029MEM,2014-10-29,Memphis Grizzlies,Minnesota Timberwolves,35.1381,-90.0506
+20141029DEN,2014-10-29,Denver Nuggets,Detroit Pistons,39.7486,-105.0076
+20141029UTA,2014-10-29,Utah Jazz,Houston Rockets,40.7683,-111.901
+20141029PHO,2014-10-29,Phoenix Suns,Los Angeles Lakers,33.4457,-112.0712
+20141029SAC,2014-10-29,Sacramento Kings,Golden State Warriors,38.649,-121.518
+20141029POR,2014-10-29,Portland Trail Blazers,Oklahoma City Thunder,45.5316,-122.6668
+20141030ORL,2014-10-30,Orlando Magic,Washington Wizards,28.5392,-81.3839
+20141030CLE,2014-10-30,Cleveland Cavaliers,New York Knicks,41.4965,-81.688
+20141030MIN,2014-10-30,Minnesota Timberwolves,Detroit Pistons,44.9795,-93.2761
+20141030DAL,2014-10-30,Dallas Mavericks,Utah Jazz,32.7904,-96.8103
+20141030LAC,2014-10-30,Los Angeles Clippers,Oklahoma City Thunder,34.043,-118.2673
+20141031IND,2014-10-31,Indiana Pacers,Memphis Grizzlies,39.7639,-86.1555
+20141031CHI,2014-10-31,Chicago Bulls,Cleveland Cavaliers,41.8806,-87.6742
+20141031MIL,2014-10-31,Milwaukee Bucks,Philadelphia 76ers,43.0432,-87.9168
+20141031PHO,2014-10-31,Phoenix Suns,San Antonio Spurs,33.4457,-112.0712
+20141031SAC,2014-10-31,Sacramento Kings,Portland Trail Blazers,38.649,-121.518
+20141031LAL,2014-10-31,Los Angeles Lakers,Los Angeles Clippers,34.043,-118.2673
+20141101CHO,2014-11-01,Charlotte Hornets,Memphis Grizzlies,35.225,-80.8392
+20141101NOP,2014-11-01,New Orleans Pelicans,Dallas Mavericks,29.949,-90.0821
+20141101ORL,2014-11-01,Orlando Magic,Toronto Raptors,28.5392,-81.3839
+20141101PHI,2014-11-01,Philadelphia 76ers,Miami Heat,39.9012,-75.172
+20141101WAS,2014-11-01,Washington Wizards,Milwaukee Bucks,38.8982,-77.0209
+20141101ATL,2014-11-01,Atlanta Hawks,Indiana Pacers,33.7573,-84.3963
+20141101DET,2014-11-01,Detroit Pistons,Brooklyn Nets,42.6914,-83.2453
+20141101HOU,2014-11-01,Houston Rockets,Boston Celtics,29.7509,-95.3622
+20141101MIN,2014-11-01,Minnesota Timberwolves,Chicago Bulls,44.9795,-93.2761
+20141101OKC,2014-11-01,Oklahoma City Thunder,Denver Nuggets,35.4635,-97.5151
+20141101UTA,2014-11-01,Utah Jazz,Phoenix Suns,40.7683,-111.901
+20141101GSW,2014-11-01,Golden State Warriors,Los Angeles Lakers,37.768,-122.3878
+20141102LAC,2014-11-02,Los Angeles Clippers,Sacramento Kings,34.043,-118.2673
+20141102MIA,2014-11-02,Miami Heat,Toronto Raptors,25.7814,-80.187
+20141102NYK,2014-11-02,New York Knicks,Charlotte Hornets,40.7505,-73.9934
+20141102POR,2014-11-02,Portland Trail Blazers,Golden State Warriors,45.5316,-122.6668
+20141103PHI,2014-11-03,Philadelphia 76ers,Houston Rockets,39.9012,-75.172
+20141103BRK,2014-11-03,Brooklyn Nets,Oklahoma City Thunder,40.6827,-73.9752
+20141103MEM,2014-11-03,Memphis Grizzlies,New Orleans Pelicans,35.1381,-90.0506
+20141103DAL,2014-11-03,Dallas Mavericks,Boston Celtics,32.7904,-96.8103
+20141103DEN,2014-11-03,Denver Nuggets,Sacramento Kings,39.7486,-105.0076
+20141103LAC,2014-11-03,Los Angeles Clippers,Utah Jazz,34.043,-118.2673
+20141104IND,2014-11-04,Indiana Pacers,Milwaukee Bucks,39.7639,-86.1555
+20141104MIA,2014-11-04,Miami Heat,Houston Rockets,25.7814,-80.187
+20141104NYK,2014-11-04,New York Knicks,Washington Wizards,40.7505,-73.9934
+20141104TOR,2014-11-04,Toronto Raptors,Oklahoma City Thunder,43.6435,-79.379
+20141104CHI,2014-11-04,Chicago Bulls,Orlando Magic,41.8806,-87.6742
+20141104NOP,2014-11-04,New Orleans Pelicans,Charlotte Hornets,29.949,-90.0821
+20141104POR,2014-11-04,Portland Trail Blazers,Cleveland Cavaliers,45.5316,-122.6668
+20141104LAL,2014-11-04,Los Angeles Lakers,Phoenix Suns,34.043,-118.2673
+20141105CHO,2014-11-05,Charlotte Hornets,Miami Heat,35.225,-80.8392
+20141105PHI,2014-11-05,Philadelphia 76ers,Orlando Magic,39.9012,-75.172
+20141105BOS,2014-11-05,Boston Celtics,Toronto Raptors,42.3663,-71.0622
+20141105BRK,2014-11-05,Brooklyn Nets,Minnesota Timberwolves,40.6827,-73.9752
+20141105DET,2014-11-05,Detroit Pistons,New York Knicks,42.6914,-83.2453
+20141105MIL,2014-11-05,Milwaukee Bucks,Chicago Bulls,43.0432,-87.9168
+20141105WAS,2014-11-05,Washington Wizards,Indiana Pacers,38.8982,-77.0209
+20141105SAS,2014-11-05,San Antonio Spurs,Atlanta Hawks,29.427,-98.4375
+20141105PHO,2014-11-05,Phoenix Suns,Memphis Grizzlies,33.4457,-112.0712
+20141105UTA,2014-11-05,Utah Jazz,Cleveland Cavaliers,40.7683,-111.901
+20141105SAC,2014-11-05,Sacramento Kings,Denver Nuggets,38.649,-121.518
+20141105GSW,2014-11-05,Golden State Warriors,Los Angeles Clippers,37.768,-122.3878
+20141106HOU,2014-11-06,Houston Rockets,San Antonio Spurs,29.7509,-95.3622
+20141106POR,2014-11-06,Portland Trail Blazers,Dallas Mavericks,45.5316,-122.6668
+20141107CHO,2014-11-07,Charlotte Hornets,Atlanta Hawks,35.225,-80.8392
+20141107ORL,2014-11-07,Orlando Magic,Minnesota Timberwolves,28.5392,-81.3839
+20141107PHI,2014-11-07,Philadelphia 76ers,Chicago Bulls,39.9012,-75.172
+20141107BOS,2014-11-07,Boston Celtics,Indiana Pacers,42.3663,-71.0622
+20141107BRK,2014-11-07,Brooklyn Nets,New York Knicks,40.6827,-73.9752
+20141107DET,2014-11-07,Detroit Pistons,Milwaukee Bucks,42.6914,-83.2453
+20141107TOR,2014-11-07,Toronto Raptors,Washington Wizards,43.6435,-79.379
+20141107OKC,2014-11-07,Oklahoma City Thunder,Memphis Grizzlies,35.4635,-97.5151
+20141107PHO,2014-11-07,Phoenix Suns,Sacramento Kings,33.4457,-112.0712
+20141107UTA,2014-11-07,Utah Jazz,Dallas Mavericks,40.7683,-111.901
+20141107DEN,2014-11-07,Denver Nuggets,Cleveland Cavaliers,39.7486,-105.0076
+20141108LAC,2014-11-08,Los Angeles Clippers,Portland Trail Blazers,34.043,-118.2673
+20141108IND,2014-11-08,Indiana Pacers,Washington Wizards,39.7639,-86.1555
+20141108ATL,2014-11-08,Atlanta Hawks,New York Knicks,33.7573,-84.3963
+20141108MIA,2014-11-08,Miami Heat,Minnesota Timberwolves,25.7814,-80.187
+20141108CHI,2014-11-08,Chicago Bulls,Boston Celtics,41.8806,-87.6742
+20141108HOU,2014-11-08,Houston Rockets,Golden State Warriors,29.7509,-95.3622
+20141108MIL,2014-11-08,Milwaukee Bucks,Memphis Grizzlies,43.0432,-87.9168
+20141108SAS,2014-11-08,San Antonio Spurs,New Orleans Pelicans,29.427,-98.4375
+20141109BRK,2014-11-09,Brooklyn Nets,Orlando Magic,40.6827,-73.9752
+20141109DET,2014-11-09,Detroit Pistons,Utah Jazz,42.6914,-83.2453
+20141109OKC,2014-11-09,Oklahoma City Thunder,Sacramento Kings,35.4635,-97.5151
+20141109TOR,2014-11-09,Toronto Raptors,Philadelphia 76ers,43.6435,-79.379
+20141109DAL,2014-11-09,Dallas Mavericks,Miami Heat,32.7904,-96.8103
+20141109PHO,2014-11-09,Phoenix Suns,Golden State Warriors,33.4457,-112.0712
+20141109POR,2014-11-09,Portland Trail Blazers,Denver Nuggets,45.5316,-122.6668
+20141109LAL,2014-11-09,Los Angeles Lakers,Charlotte Hornets,34.043,-118.2673
+20141110CLE,2014-11-10,Cleveland Cavaliers,New Orleans Pelicans,41.4965,-81.688
+20141110IND,2014-11-10,Indiana Pacers,Utah Jazz,39.7639,-86.1555
+20141110NYK,2014-11-10,New York Knicks,Atlanta Hawks,40.7505,-73.9934
+20141110CHI,2014-11-10,Chicago Bulls,Detroit Pistons,41.8806,-87.6742
+20141110LAC,2014-11-10,Los Angeles Clippers,San Antonio Spurs,34.043,-118.2673
+20141111TOR,2014-11-11,Toronto Raptors,Orlando Magic,43.6435,-79.379
+20141111MEM,2014-11-11,Memphis Grizzlies,Los Angeles Lakers,35.1381,-90.0506
+20141111MIL,2014-11-11,Milwaukee Bucks,Oklahoma City Thunder,43.0432,-87.9168
+20141111DAL,2014-11-11,Dallas Mavericks,Sacramento Kings,32.7904,-96.8103
+20141111POR,2014-11-11,Portland Trail Blazers,Charlotte Hornets,45.5316,-122.6668
+20141111GSW,2014-11-11,Golden State Warriors,San Antonio Spurs,37.768,-122.3878
+20141112WAS,2014-11-12,Washington Wizards,Detroit Pistons,38.8982,-77.0209
+20141112ATL,2014-11-12,Atlanta Hawks,Utah Jazz,33.7573,-84.3963
+20141112BOS,2014-11-12,Boston Celtics,Oklahoma City Thunder,42.3663,-71.0622
+20141112MIA,2014-11-12,Miami Heat,Indiana Pacers,25.7814,-80.187
+20141112NYK,2014-11-12,New York Knicks,Orlando Magic,40.7505,-73.9934
+20141112NOP,2014-11-12,New Orleans Pelicans,Los Angeles Lakers,29.949,-90.0821
+20141112DEN,2014-11-12,Denver Nuggets,Portland Trail Blazers,39.7486,-105.0076
+20141112PHO,2014-11-12,Phoenix Suns,Brooklyn Nets,33.4457,-112.0712
+20141112MIN,2014-11-12,Minnesota Timberwolves,Houston Rockets,19.4977,-99.1751
+20141113MEM,2014-11-13,Memphis Grizzlies,Sacramento Kings,35.1381,-90.0506
+20141113TOR,2014-11-13,Toronto Raptors,Chicago Bulls,43.6435,-79.379
+20141113DAL,2014-11-13,Dallas Mavericks,Philadelphia 76ers,32.7904,-96.8103
+20141113GSW,2014-11-13,Golden State Warriors,Brooklyn Nets,37.768,-122.3878
+20141114IND,2014-11-14,Indiana Pacers,Denver Nuggets,39.7639,-86.1555
+20141114ORL,2014-11-14,Orlando Magic,Milwaukee Bucks,28.5392,-81.3839
+20141114ATL,2014-11-14,Atlanta Hawks,Miami Heat,33.7573,-84.3963
+20141114BOS,2014-11-14,Boston Celtics,Cleveland Cavaliers,42.3663,-71.0622
+20141114NYK,2014-11-14,New York Knicks,Utah Jazz,40.7505,-73.9934
+20141114HOU,2014-11-14,Houston Rockets,Philadelphia 76ers,29.7509,-95.3622
+20141114NOP,2014-11-14,New Orleans Pelicans,Minnesota Timberwolves,29.949,-90.0821
+20141114OKC,2014-11-14,Oklahoma City Thunder,Detroit Pistons,35.4635,-97.5151
+20141114PHO,2014-11-14,Phoenix Suns,Charlotte Hornets,33.4457,-112.0712
+20141114LAL,2014-11-14,Los Angeles Lakers,San Antonio Spurs,34.043,-118.2673
+20141115WAS,2014-11-15,Washington Wizards,Orlando Magic,38.8982,-77.0209
+20141115CLE,2014-11-15,Cleveland Cavaliers,Atlanta Hawks,41.4965,-81.688
+20141115TOR,2014-11-15,Toronto Raptors,Utah Jazz,43.6435,-79.379
+20141115CHI,2014-11-15,Chicago Bulls,Indiana Pacers,41.8806,-87.6742
+20141115MEM,2014-11-15,Memphis Grizzlies,Detroit Pistons,35.1381,-90.0506
+20141115DAL,2014-11-15,Dallas Mavericks,Minnesota Timberwolves,32.7904,-96.8103
+20141115POR,2014-11-15,Portland Trail Blazers,Brooklyn Nets,45.5316,-122.6668
+20141115SAC,2014-11-15,Sacramento Kings,San Antonio Spurs,38.649,-121.518
+20141115GSW,2014-11-15,Golden State Warriors,Charlotte Hornets,37.768,-122.3878
+20141115LAC,2014-11-15,Los Angeles Clippers,Phoenix Suns,34.043,-118.2673
+20141116NYK,2014-11-16,New York Knicks,Denver Nuggets,40.7505,-73.9934
+20141116MIA,2014-11-16,Miami Heat,Milwaukee Bucks,25.7814,-80.187
+20141116OKC,2014-11-16,Oklahoma City Thunder,Houston Rockets,35.4635,-97.5151
+20141116LAL,2014-11-16,Los Angeles Lakers,Golden State Warriors,34.043,-118.2673
+20141117CHO,2014-11-17,Charlotte Hornets,Dallas Mavericks,35.225,-80.8392
+20141117CLE,2014-11-17,Cleveland Cavaliers,Denver Nuggets,41.4965,-81.688
+20141117BOS,2014-11-17,Boston Celtics,Phoenix Suns,42.3663,-71.0622
+20141117BRK,2014-11-17,Brooklyn Nets,Miami Heat,40.6827,-73.9752
+20141117DET,2014-11-17,Detroit Pistons,Orlando Magic,42.6914,-83.2453
+20141117MEM,2014-11-17,Memphis Grizzlies,Houston Rockets,35.1381,-90.0506
+20141117SAS,2014-11-17,San Antonio Spurs,Philadelphia 76ers,29.427,-98.4375
+20141117POR,2014-11-17,Portland Trail Blazers,New Orleans Pelicans,45.5316,-122.6668
+20141117LAC,2014-11-17,Los Angeles Clippers,Chicago Bulls,34.043,-118.2673
+20141118ATL,2014-11-18,Atlanta Hawks,Los Angeles Lakers,33.7573,-84.3963
+20141118MIL,2014-11-18,Milwaukee Bucks,New York Knicks,43.0432,-87.9168
+20141118UTA,2014-11-18,Utah Jazz,Oklahoma City Thunder,40.7683,-111.901
+20141118SAC,2014-11-18,Sacramento Kings,New Orleans Pelicans,38.649,-121.518
+20141119CLE,2014-11-19,Cleveland Cavaliers,San Antonio Spurs,41.4965,-81.688
+20141119IND,2014-11-19,Indiana Pacers,Charlotte Hornets,39.7639,-86.1555
+20141119ORL,2014-11-19,Orlando Magic,Los Angeles Clippers,28.5392,-81.3839
+20141119PHI,2014-11-19,Philadelphia 76ers,Boston Celtics,39.9012,-75.172
+20141119WAS,2014-11-19,Washington Wizards,Dallas Mavericks,38.8982,-77.0209
+20141119BRK,2014-11-19,Brooklyn Nets,Milwaukee Bucks,40.6827,-73.9752
+20141119DET,2014-11-19,Detroit Pistons,Phoenix Suns,42.6914,-83.2453
+20141119TOR,2014-11-19,Toronto Raptors,Memphis Grizzlies,43.6435,-79.379
+20141119MIN,2014-11-19,Minnesota Timberwolves,New York Knicks,44.9795,-93.2761
+20141119DEN,2014-11-19,Denver Nuggets,Oklahoma City Thunder,39.7486,-105.0076
+20141119HOU,2014-11-19,Houston Rockets,Los Angeles Lakers,29.7509,-95.3622
+20141120MIA,2014-11-20,Miami Heat,Los Angeles Clippers,25.7814,-80.187
+20141120SAC,2014-11-20,Sacramento Kings,Chicago Bulls,38.649,-121.518
+20141121CHO,2014-11-21,Charlotte Hornets,Orlando Magic,35.225,-80.8392
+20141121PHI,2014-11-21,Philadelphia 76ers,Phoenix Suns,39.9012,-75.172
+20141121ATL,2014-11-21,Atlanta Hawks,Detroit Pistons,33.7573,-84.3963
+20141121TOR,2014-11-21,Toronto Raptors,Milwaukee Bucks,43.6435,-79.379
+20141121MEM,2014-11-21,Memphis Grizzlies,Boston Celtics,35.1381,-90.0506
+20141121MIN,2014-11-21,Minnesota Timberwolves,San Antonio Spurs,44.9795,-93.2761
+20141121OKC,2014-11-21,Oklahoma City Thunder,Brooklyn Nets,35.4635,-97.5151
+20141121WAS,2014-11-21,Washington Wizards,Cleveland Cavaliers,38.8982,-77.0209
+20141121DAL,2014-11-21,Dallas Mavericks,Los Angeles Lakers,32.7904,-96.8103
+20141121DEN,2014-11-21,Denver Nuggets,New Orleans Pelicans,39.7486,-105.0076
+20141121GSW,2014-11-21,Golden State Warriors,Utah Jazz,37.768,-122.3878
+20141121POR,2014-11-21,Portland Trail Blazers,Chicago Bulls,45.5316,-122.6668
+20141122IND,2014-11-22,Indiana Pacers,Phoenix Suns,39.7639,-86.1555
+20141122ORL,2014-11-22,Orlando Magic,Miami Heat,28.5392,-81.3839
+20141122CLE,2014-11-22,Cleveland Cavaliers,Toronto Raptors,41.4965,-81.688
+20141122NYK,2014-11-22,New York Knicks,Philadelphia 76ers,40.7505,-73.9934
+20141122HOU,2014-11-22,Houston Rockets,Dallas Mavericks,29.7509,-95.3622
+20141122MIN,2014-11-22,Minnesota Timberwolves,Sacramento Kings,44.9795,-93.2761
+20141122MIL,2014-11-22,Milwaukee Bucks,Washington Wizards,43.0432,-87.9168
+20141122SAS,2014-11-22,San Antonio Spurs,Brooklyn Nets,29.427,-98.4375
+20141122UTA,2014-11-22,Utah Jazz,New Orleans Pelicans,40.7683,-111.901
+20141123BOS,2014-11-23,Boston Celtics,Portland Trail Blazers,42.3663,-71.0622
+20141123MEM,2014-11-23,Memphis Grizzlies,Los Angeles Clippers,35.1381,-90.0506
+20141123MIA,2014-11-23,Miami Heat,Charlotte Hornets,25.7814,-80.187
+20141123OKC,2014-11-23,Oklahoma City Thunder,Golden State Warriors,35.4635,-97.5151
+20141123LAL,2014-11-23,Los Angeles Lakers,Denver Nuggets,34.043,-118.2673
+20141124CHO,2014-11-24,Charlotte Hornets,Los Angeles Clippers,35.225,-80.8392
+20141124CLE,2014-11-24,Cleveland Cavaliers,Orlando Magic,41.4965,-81.688
+20141124PHI,2014-11-24,Philadelphia 76ers,Portland Trail Blazers,39.9012,-75.172
+20141124TOR,2014-11-24,Toronto Raptors,Phoenix Suns,43.6435,-79.379
+20141124HOU,2014-11-24,Houston Rockets,New York Knicks,29.7509,-95.3622
+20141124DAL,2014-11-24,Dallas Mavericks,Indiana Pacers,32.7904,-96.8103
+20141124UTA,2014-11-24,Utah Jazz,Chicago Bulls,40.7683,-111.901
+20141125WAS,2014-11-25,Washington Wizards,Atlanta Hawks,38.8982,-77.0209
+20141125MIA,2014-11-25,Miami Heat,Golden State Warriors,25.7814,-80.187
+20141125MIL,2014-11-25,Milwaukee Bucks,Detroit Pistons,43.0432,-87.9168
+20141125NOP,2014-11-25,New Orleans Pelicans,Sacramento Kings,29.949,-90.0821
+20141125DEN,2014-11-25,Denver Nuggets,Chicago Bulls,39.7486,-105.0076
+20141126CHO,2014-11-26,Charlotte Hornets,Portland Trail Blazers,35.225,-80.8392
+20141126CLE,2014-11-26,Cleveland Cavaliers,Washington Wizards,41.4965,-81.688
+20141126ORL,2014-11-26,Orlando Magic,Golden State Warriors,28.5392,-81.3839
+20141126PHI,2014-11-26,Philadelphia 76ers,Brooklyn Nets,39.9012,-75.172
+20141126ATL,2014-11-26,Atlanta Hawks,Toronto Raptors,33.7573,-84.3963
+20141126DAL,2014-11-26,Dallas Mavericks,New York Knicks,32.7904,-96.8103
+20141126DET,2014-11-26,Detroit Pistons,Los Angeles Clippers,42.6914,-83.2453
+20141126HOU,2014-11-26,Houston Rockets,Sacramento Kings,29.7509,-95.3622
+20141126MIN,2014-11-26,Minnesota Timberwolves,Milwaukee Bucks,44.9795,-93.2761
+20141126OKC,2014-11-26,Oklahoma City Thunder,Utah Jazz,35.4635,-97.5151
+20141126SAS,2014-11-26,San Antonio Spurs,Indiana Pacers,29.427,-98.4375
+20141126PHO,2014-11-26,Phoenix Suns,Denver Nuggets,33.4457,-112.0712
+20141126LAL,2014-11-26,Los Angeles Lakers,Memphis Grizzlies,34.043,-118.2673
+20141128BOS,2014-11-28,Boston Celtics,Chicago Bulls,42.3663,-71.0622
+20141128CHO,2014-11-28,Charlotte Hornets,Golden State Warriors,35.225,-80.8392
+20141128ATL,2014-11-28,Atlanta Hawks,New Orleans Pelicans,33.7573,-84.3963
+20141128DET,2014-11-28,Detroit Pistons,Milwaukee Bucks,42.6914,-83.2453
+20141128TOR,2014-11-28,Toronto Raptors,Dallas Mavericks,43.6435,-79.379
+20141128HOU,2014-11-28,Houston Rockets,Los Angeles Clippers,29.7509,-95.3622
+20141128IND,2014-11-28,Indiana Pacers,Orlando Magic,39.7639,-86.1555
+20141128OKC,2014-11-28,Oklahoma City Thunder,New York Knicks,35.4635,-97.5151
+20141128SAS,2014-11-28,San Antonio Spurs,Sacramento Kings,29.427,-98.4375
+20141128DEN,2014-11-28,Denver Nuggets,Phoenix Suns,39.7486,-105.0076
+20141128POR,2014-11-28,Portland Trail Blazers,Memphis Grizzlies,45.5316,-122.6668
+20141128LAL,2014-11-28,Los Angeles Lakers,Minnesota Timberwolves,34.043,-118.2673
+20141129PHI,2014-11-29,Philadelphia 76ers,Dallas Mavericks,39.9012,-75.172
+20141129WAS,2014-11-29,Washington Wizards,New Orleans Pelicans,38.8982,-77.0209
+20141129ATL,2014-11-29,Atlanta Hawks,Charlotte Hornets,33.7573,-84.3963
+20141129CLE,2014-11-29,Cleveland Cavaliers,Indiana Pacers,41.4965,-81.688
+20141129MIL,2014-11-29,Milwaukee Bucks,Houston Rockets,43.0432,-87.9168
+20141129UTA,2014-11-29,Utah Jazz,Los Angeles Clippers,40.7683,-111.901
+20141130BOS,2014-11-30,Boston Celtics,San Antonio Spurs,42.3663,-71.0622
+20141130BRK,2014-11-30,Brooklyn Nets,Chicago Bulls,40.6827,-73.9752
+20141130DET,2014-11-30,Detroit Pistons,Golden State Warriors,42.6914,-83.2453
+20141130SAC,2014-11-30,Sacramento Kings,Memphis Grizzlies,38.649,-121.518
+20141130NYK,2014-11-30,New York Knicks,Miami Heat,40.7505,-73.9934
+20141130PHO,2014-11-30,Phoenix Suns,Orlando Magic,33.4457,-112.0712
+20141130POR,2014-11-30,Portland Trail Blazers,Minnesota Timberwolves,45.5316,-122.6668
+20141130LAL,2014-11-30,Los Angeles Lakers,Toronto Raptors,34.043,-118.2673
+20141201PHI,2014-12-01,Philadelphia 76ers,San Antonio Spurs,39.9012,-75.172
+20141201WAS,2014-12-01,Washington Wizards,Miami Heat,38.8982,-77.0209
+20141201UTA,2014-12-01,Utah Jazz,Denver Nuggets,40.7683,-111.901
+20141201LAC,2014-12-01,Los Angeles Clippers,Minnesota Timberwolves,34.043,-118.2673
+20141202CLE,2014-12-02,Cleveland Cavaliers,Milwaukee Bucks,41.4965,-81.688
+20141202ATL,2014-12-02,Atlanta Hawks,Boston Celtics,33.7573,-84.3963
+20141202DET,2014-12-02,Detroit Pistons,Los Angeles Lakers,42.6914,-83.2453
+20141202NYK,2014-12-02,New York Knicks,Brooklyn Nets,40.7505,-73.9934
+20141202CHI,2014-12-02,Chicago Bulls,Dallas Mavericks,41.8806,-87.6742
+20141202NOP,2014-12-02,New Orleans Pelicans,Oklahoma City Thunder,29.949,-90.0821
+20141202DEN,2014-12-02,Denver Nuggets,Portland Trail Blazers,39.7486,-105.0076
+20141202PHO,2014-12-02,Phoenix Suns,Indiana Pacers,33.4457,-112.0712
+20141202SAC,2014-12-02,Sacramento Kings,Toronto Raptors,38.649,-121.518
+20141202GSW,2014-12-02,Golden State Warriors,Orlando Magic,37.768,-122.3878
+20141203CHO,2014-12-03,Charlotte Hornets,Chicago Bulls,35.225,-80.8392
+20141203WAS,2014-12-03,Washington Wizards,Los Angeles Lakers,38.8982,-77.0209
+20141203BOS,2014-12-03,Boston Celtics,Detroit Pistons,42.3663,-71.0622
+20141203BRK,2014-12-03,Brooklyn Nets,San Antonio Spurs,40.6827,-73.9752
+20141203MIA,2014-12-03,Miami Heat,Atlanta Hawks,25.7814,-80.187
+20141203HOU,2014-12-03,Houston Rockets,Memphis Grizzlies,29.7509,-95.3622
+20141203MIL,2014-12-03,Milwaukee Bucks,Dallas Mavericks,43.0432,-87.9168
+20141203MIN,2014-12-03,Minnesota Timberwolves,Philadelphia 76ers,44.9795,-93.2761
+20141203UTA,2014-12-03,Utah Jazz,Toronto Raptors,40.7683,-111.901
+20141203LAC,2014-12-03,Los Angeles Clippers,Orlando Magic,34.043,-118.2673
+20141204NYK,2014-12-04,New York Knicks,Cleveland Cavaliers,40.7505,-73.9934
+20141204POR,2014-12-04,Portland Trail Blazers,Indiana Pacers,45.5316,-122.6668
+20141204GSW,2014-12-04,Golden State Warriors,New Orleans Pelicans,37.768,-122.3878
+20141205CHO,2014-12-05,Charlotte Hornets,New York Knicks,35.225,-80.8392
+20141205PHI,2014-12-05,Philadelphia 76ers,Oklahoma City Thunder,39.9012,-75.172
+20141205WAS,2014-12-05,Washington Wizards,Denver Nuggets,38.8982,-77.0209
+20141205BOS,2014-12-05,Boston Celtics,Los Angeles Lakers,42.3663,-71.0622
+20141205BRK,2014-12-05,Brooklyn Nets,Atlanta Hawks,40.6827,-73.9752
+20141205TOR,2014-12-05,Toronto Raptors,Cleveland Cavaliers,43.6435,-79.379
+20141205MEM,2014-12-05,Memphis Grizzlies,San Antonio Spurs,35.1381,-90.0506
+20141205MIN,2014-12-05,Minnesota Timberwolves,Houston Rockets,44.9795,-93.2761
+20141205DAL,2014-12-05,Dallas Mavericks,Phoenix Suns,32.7904,-96.8103
+20141205MIL,2014-12-05,Milwaukee Bucks,Miami Heat,43.0432,-87.9168
+20141205UTA,2014-12-05,Utah Jazz,Orlando Magic,40.7683,-111.901
+20141205SAC,2014-12-05,Sacramento Kings,Indiana Pacers,38.649,-121.518
+20141206DET,2014-12-06,Detroit Pistons,Philadelphia 76ers,42.6914,-83.2453
+20141206CHI,2014-12-06,Chicago Bulls,Golden State Warriors,41.8806,-87.6742
+20141206HOU,2014-12-06,Houston Rockets,Phoenix Suns,29.7509,-95.3622
+20141206SAS,2014-12-06,San Antonio Spurs,Minnesota Timberwolves,29.427,-98.4375
+20141206SAC,2014-12-06,Sacramento Kings,Orlando Magic,38.649,-121.518
+20141206LAC,2014-12-06,Los Angeles Clippers,New Orleans Pelicans,34.043,-118.2673
+20141207BOS,2014-12-07,Boston Celtics,Washington Wizards,42.3663,-71.0622
+20141207ATL,2014-12-07,Atlanta Hawks,Denver Nuggets,33.7573,-84.3963
+20141207DET,2014-12-07,Detroit Pistons,Oklahoma City Thunder,42.6914,-83.2453
+20141207MEM,2014-12-07,Memphis Grizzlies,Miami Heat,35.1381,-90.0506
+20141207DAL,2014-12-07,Dallas Mavericks,Milwaukee Bucks,32.7904,-96.8103
+20141207NYK,2014-12-07,New York Knicks,Portland Trail Blazers,40.7505,-73.9934
+20141207LAL,2014-12-07,Los Angeles Lakers,New Orleans Pelicans,34.043,-118.2673
+20141208IND,2014-12-08,Indiana Pacers,Atlanta Hawks,39.7639,-86.1555
+20141208WAS,2014-12-08,Washington Wizards,Boston Celtics,38.8982,-77.0209
+20141208BRK,2014-12-08,Brooklyn Nets,Cleveland Cavaliers,40.6827,-73.9752
+20141208TOR,2014-12-08,Toronto Raptors,Denver Nuggets,43.6435,-79.379
+20141208MIN,2014-12-08,Minnesota Timberwolves,Golden State Warriors,44.9795,-93.2761
+20141208SAC,2014-12-08,Sacramento Kings,Utah Jazz,38.649,-121.518
+20141208LAC,2014-12-08,Los Angeles Clippers,Phoenix Suns,34.043,-118.2673
+20141209CLE,2014-12-09,Cleveland Cavaliers,Toronto Raptors,41.4965,-81.688
+20141209DET,2014-12-09,Detroit Pistons,Portland Trail Blazers,42.6914,-83.2453
+20141209MEM,2014-12-09,Memphis Grizzlies,Dallas Mavericks,35.1381,-90.0506
+20141209NOP,2014-12-09,New Orleans Pelicans,New York Knicks,29.949,-90.0821
+20141209OKC,2014-12-09,Oklahoma City Thunder,Milwaukee Bucks,35.4635,-97.5151
+20141209PHO,2014-12-09,Phoenix Suns,Miami Heat,33.4457,-112.0712
+20141209UTA,2014-12-09,Utah Jazz,San Antonio Spurs,40.7683,-111.901
+20141209LAL,2014-12-09,Los Angeles Lakers,Sacramento Kings,34.043,-118.2673
+20141210CHO,2014-12-10,Charlotte Hornets,Boston Celtics,35.225,-80.8392
+20141210IND,2014-12-10,Indiana Pacers,Los Angeles Clippers,39.7639,-86.1555
+20141210ORL,2014-12-10,Orlando Magic,Washington Wizards,28.5392,-81.3839
+20141210ATL,2014-12-10,Atlanta Hawks,Philadelphia 76ers,33.7573,-84.3963
+20141210CHI,2014-12-10,Chicago Bulls,Brooklyn Nets,41.8806,-87.6742
+20141210DAL,2014-12-10,Dallas Mavericks,New Orleans Pelicans,32.7904,-96.8103
+20141210MIN,2014-12-10,Minnesota Timberwolves,Portland Trail Blazers,44.9795,-93.2761
+20141210SAS,2014-12-10,San Antonio Spurs,New York Knicks,29.427,-98.4375
+20141210DEN,2014-12-10,Denver Nuggets,Miami Heat,39.7486,-105.0076
+20141210GSW,2014-12-10,Golden State Warriors,Houston Rockets,37.768,-122.3878
+20141211OKC,2014-12-11,Oklahoma City Thunder,Cleveland Cavaliers,35.4635,-97.5151
+20141211SAC,2014-12-11,Sacramento Kings,Houston Rockets,38.649,-121.518
+20141212CHI,2014-12-12,Chicago Bulls,Portland Trail Blazers,41.8806,-87.6742
+20141212WAS,2014-12-12,Washington Wizards,Los Angeles Clippers,38.8982,-77.0209
+20141212ATL,2014-12-12,Atlanta Hawks,Orlando Magic,33.7573,-84.3963
+20141212BOS,2014-12-12,Boston Celtics,New York Knicks,42.3663,-71.0622
+20141212BRK,2014-12-12,Brooklyn Nets,Philadelphia 76ers,40.6827,-73.9752
+20141212TOR,2014-12-12,Toronto Raptors,Indiana Pacers,43.6435,-79.379
+20141212MEM,2014-12-12,Memphis Grizzlies,Charlotte Hornets,35.1381,-90.0506
+20141212MIN,2014-12-12,Minnesota Timberwolves,Oklahoma City Thunder,44.9795,-93.2761
+20141212NOP,2014-12-12,New Orleans Pelicans,Cleveland Cavaliers,29.949,-90.0821
+20141212PHO,2014-12-12,Phoenix Suns,Detroit Pistons,33.4457,-112.0712
+20141212UTA,2014-12-12,Utah Jazz,Miami Heat,40.7683,-111.901
+20141212SAS,2014-12-12,San Antonio Spurs,Los Angeles Lakers,29.427,-98.4375
+20141213DAL,2014-12-13,Dallas Mavericks,Golden State Warriors,32.7904,-96.8103
+20141213CHO,2014-12-13,Charlotte Hornets,Brooklyn Nets,35.225,-80.8392
+20141213IND,2014-12-13,Indiana Pacers,Portland Trail Blazers,39.7639,-86.1555
+20141213ORL,2014-12-13,Orlando Magic,Atlanta Hawks,28.5392,-81.3839
+20141213MIL,2014-12-13,Milwaukee Bucks,Los Angeles Clippers,43.0432,-87.9168
+20141213PHI,2014-12-13,Philadelphia 76ers,Memphis Grizzlies,39.9012,-75.172
+20141213HOU,2014-12-13,Houston Rockets,Denver Nuggets,29.7509,-95.3622
+20141213SAC,2014-12-13,Sacramento Kings,Detroit Pistons,38.649,-121.518
+20141214MIA,2014-12-14,Miami Heat,Chicago Bulls,25.7814,-80.187
+20141214NOP,2014-12-14,New Orleans Pelicans,Golden State Warriors,29.949,-90.0821
+20141214WAS,2014-12-14,Washington Wizards,Utah Jazz,38.8982,-77.0209
+20141214MIN,2014-12-14,Minnesota Timberwolves,Los Angeles Lakers,44.9795,-93.2761
+20141214OKC,2014-12-14,Oklahoma City Thunder,Phoenix Suns,35.4635,-97.5151
+20141214NYK,2014-12-14,New York Knicks,Toronto Raptors,40.7505,-73.9934
+20141214DEN,2014-12-14,Denver Nuggets,San Antonio Spurs,39.7486,-105.0076
+20141215CLE,2014-12-15,Cleveland Cavaliers,Charlotte Hornets,41.4965,-81.688
+20141215IND,2014-12-15,Indiana Pacers,Los Angeles Lakers,39.7639,-86.1555
+20141215PHI,2014-12-15,Philadelphia 76ers,Boston Celtics,39.9012,-75.172
+20141215ATL,2014-12-15,Atlanta Hawks,Chicago Bulls,33.7573,-84.3963
+20141215TOR,2014-12-15,Toronto Raptors,Orlando Magic,43.6435,-79.379
+20141215PHO,2014-12-15,Phoenix Suns,Milwaukee Bucks,33.4457,-112.0712
+20141215POR,2014-12-15,Portland Trail Blazers,San Antonio Spurs,45.5316,-122.6668
+20141215LAC,2014-12-15,Los Angeles Clippers,Detroit Pistons,34.043,-118.2673
+20141216WAS,2014-12-16,Washington Wizards,Minnesota Timberwolves,38.8982,-77.0209
+20141216BRK,2014-12-16,Brooklyn Nets,Miami Heat,40.6827,-73.9752
+20141216MEM,2014-12-16,Memphis Grizzlies,Golden State Warriors,35.1381,-90.0506
+20141216NOP,2014-12-16,New Orleans Pelicans,Utah Jazz,29.949,-90.0821
+20141216NYK,2014-12-16,New York Knicks,Dallas Mavericks,40.7505,-73.9934
+20141216SAC,2014-12-16,Sacramento Kings,Oklahoma City Thunder,38.649,-121.518
+20141217CHO,2014-12-17,Charlotte Hornets,Phoenix Suns,35.225,-80.8392
+20141217CLE,2014-12-17,Cleveland Cavaliers,Atlanta Hawks,41.4965,-81.688
+20141217BOS,2014-12-17,Boston Celtics,Orlando Magic,42.3663,-71.0622
+20141217DET,2014-12-17,Detroit Pistons,Dallas Mavericks,42.6914,-83.2453
+20141217MIA,2014-12-17,Miami Heat,Utah Jazz,25.7814,-80.187
+20141217TOR,2014-12-17,Toronto Raptors,Brooklyn Nets,43.6435,-79.379
+20141217SAS,2014-12-17,San Antonio Spurs,Memphis Grizzlies,29.427,-98.4375
+20141217POR,2014-12-17,Portland Trail Blazers,Milwaukee Bucks,45.5316,-122.6668
+20141217DEN,2014-12-17,Denver Nuggets,Houston Rockets,39.7486,-105.0076
+20141217LAC,2014-12-17,Los Angeles Clippers,Indiana Pacers,34.043,-118.2673
+20141218CHI,2014-12-18,Chicago Bulls,New York Knicks,41.8806,-87.6742
+20141218HOU,2014-12-18,Houston Rockets,New Orleans Pelicans,29.7509,-95.3622
+20141218SAC,2014-12-18,Sacramento Kings,Milwaukee Bucks,38.649,-121.518
+20141218GSW,2014-12-18,Golden State Warriors,Oklahoma City Thunder,37.768,-122.3878
+20141219ORL,2014-12-19,Orlando Magic,Utah Jazz,28.5392,-81.3839
+20141219PHI,2014-12-19,Philadelphia 76ers,Charlotte Hornets,39.9012,-75.172
+20141219BOS,2014-12-19,Boston Celtics,Minnesota Timberwolves,42.3663,-71.0622
+20141219CLE,2014-12-19,Cleveland Cavaliers,Brooklyn Nets,41.4965,-81.688
+20141219DET,2014-12-19,Detroit Pistons,Toronto Raptors,42.6914,-83.2453
+20141219MIA,2014-12-19,Miami Heat,Washington Wizards,25.7814,-80.187
+20141219MEM,2014-12-19,Memphis Grizzlies,Chicago Bulls,35.1381,-90.0506
+20141219SAS,2014-12-19,San Antonio Spurs,Portland Trail Blazers,29.427,-98.4375
+20141219DEN,2014-12-19,Denver Nuggets,Los Angeles Clippers,39.7486,-105.0076
+20141219LAL,2014-12-19,Los Angeles Lakers,Oklahoma City Thunder,34.043,-118.2673
+20141220HOU,2014-12-20,Houston Rockets,Atlanta Hawks,29.7509,-95.3622
+20141220DAL,2014-12-20,Dallas Mavericks,San Antonio Spurs,32.7904,-96.8103
+20141220DEN,2014-12-20,Denver Nuggets,Indiana Pacers,39.7486,-105.0076
+20141220LAC,2014-12-20,Los Angeles Clippers,Milwaukee Bucks,34.043,-118.2673
+20141220NYK,2014-12-20,New York Knicks,Phoenix Suns,40.7505,-73.9934
+20141220CHO,2014-12-20,Charlotte Hornets,Utah Jazz,35.225,-80.8392
+20141220NOP,2014-12-20,New Orleans Pelicans,Portland Trail Blazers,29.949,-90.0821
+20141221TOR,2014-12-21,Toronto Raptors,New York Knicks,43.6435,-79.379
+20141221CLE,2014-12-21,Cleveland Cavaliers,Memphis Grizzlies,41.4965,-81.688
+20141221BRK,2014-12-21,Brooklyn Nets,Detroit Pistons,40.6827,-73.9752
+20141221MIA,2014-12-21,Miami Heat,Boston Celtics,25.7814,-80.187
+20141221ORL,2014-12-21,Orlando Magic,Philadelphia 76ers,28.5392,-81.3839
+20141221SAC,2014-12-21,Sacramento Kings,Los Angeles Lakers,38.649,-121.518
+20141221WAS,2014-12-21,Washington Wizards,Phoenix Suns,38.8982,-77.0209
+20141221MIN,2014-12-21,Minnesota Timberwolves,Indiana Pacers,44.9795,-93.2761
+20141221OKC,2014-12-21,Oklahoma City Thunder,New Orleans Pelicans,35.4635,-97.5151
+20141222CHO,2014-12-22,Charlotte Hornets,Denver Nuggets,35.225,-80.8392
+20141222CHI,2014-12-22,Chicago Bulls,Toronto Raptors,41.8806,-87.6742
+20141222HOU,2014-12-22,Houston Rockets,Portland Trail Blazers,29.7509,-95.3622
+20141222MEM,2014-12-22,Memphis Grizzlies,Utah Jazz,35.1381,-90.0506
+20141222DAL,2014-12-22,Dallas Mavericks,Atlanta Hawks,32.7904,-96.8103
+20141222SAS,2014-12-22,San Antonio Spurs,Los Angeles Clippers,29.427,-98.4375
+20141222GSW,2014-12-22,Golden State Warriors,Sacramento Kings,37.768,-122.3878
+20141223CLE,2014-12-23,Cleveland Cavaliers,Minnesota Timberwolves,41.4965,-81.688
+20141223IND,2014-12-23,Indiana Pacers,New Orleans Pelicans,39.7639,-86.1555
+20141223ORL,2014-12-23,Orlando Magic,Boston Celtics,28.5392,-81.3839
+20141223WAS,2014-12-23,Washington Wizards,Chicago Bulls,38.8982,-77.0209
+20141223ATL,2014-12-23,Atlanta Hawks,Los Angeles Clippers,33.7573,-84.3963
+20141223BRK,2014-12-23,Brooklyn Nets,Denver Nuggets,40.6827,-73.9752
+20141223MIA,2014-12-23,Miami Heat,Philadelphia 76ers,25.7814,-80.187
+20141223MIL,2014-12-23,Milwaukee Bucks,Charlotte Hornets,43.0432,-87.9168
+20141223OKC,2014-12-23,Oklahoma City Thunder,Portland Trail Blazers,35.4635,-97.5151
+20141223PHO,2014-12-23,Phoenix Suns,Dallas Mavericks,33.4457,-112.0712
+20141223LAL,2014-12-23,Los Angeles Lakers,Golden State Warriors,34.043,-118.2673
+20141225NYK,2014-12-25,New York Knicks,Washington Wizards,40.7505,-73.9934
+20141225SAS,2014-12-25,San Antonio Spurs,Oklahoma City Thunder,29.427,-98.4375
+20141225MIA,2014-12-25,Miami Heat,Cleveland Cavaliers,25.7814,-80.187
+20141225CHI,2014-12-25,Chicago Bulls,Los Angeles Lakers,41.8806,-87.6742
+20141225LAC,2014-12-25,Los Angeles Clippers,Golden State Warriors,34.043,-118.2673
+20141226BOS,2014-12-26,Boston Celtics,Brooklyn Nets,42.3663,-71.0622
+20141226ORL,2014-12-26,Orlando Magic,Cleveland Cavaliers,28.5392,-81.3839
+20141226ATL,2014-12-26,Atlanta Hawks,Milwaukee Bucks,33.7573,-84.3963
+20141226DET,2014-12-26,Detroit Pistons,Indiana Pacers,42.6914,-83.2453
+20141226MEM,2014-12-26,Memphis Grizzlies,Houston Rockets,35.1381,-90.0506
+20141226NOP,2014-12-26,New Orleans Pelicans,San Antonio Spurs,29.949,-90.0821
+20141226OKC,2014-12-26,Oklahoma City Thunder,Charlotte Hornets,35.4635,-97.5151
+20141226DAL,2014-12-26,Dallas Mavericks,Los Angeles Lakers,32.7904,-96.8103
+20141226DEN,2014-12-26,Denver Nuggets,Minnesota Timberwolves,39.7486,-105.0076
+20141226POR,2014-12-26,Portland Trail Blazers,Philadelphia 76ers,45.5316,-122.6668
+20141226SAC,2014-12-26,Sacramento Kings,Phoenix Suns,38.649,-121.518
+20141227LAC,2014-12-27,Los Angeles Clippers,Toronto Raptors,34.043,-118.2673
+20141227CHO,2014-12-27,Charlotte Hornets,Orlando Magic,35.225,-80.8392
+20141227WAS,2014-12-27,Washington Wizards,Boston Celtics,38.8982,-77.0209
+20141227MIA,2014-12-27,Miami Heat,Memphis Grizzlies,25.7814,-80.187
+20141227BRK,2014-12-27,Brooklyn Nets,Indiana Pacers,40.6827,-73.9752
+20141227CHI,2014-12-27,Chicago Bulls,New Orleans Pelicans,41.8806,-87.6742
+20141227MIL,2014-12-27,Milwaukee Bucks,Atlanta Hawks,43.0432,-87.9168
+20141227UTA,2014-12-27,Utah Jazz,Philadelphia 76ers,40.7683,-111.901
+20141227SAC,2014-12-27,Sacramento Kings,New York Knicks,38.649,-121.518
+20141227GSW,2014-12-27,Golden State Warriors,Minnesota Timberwolves,37.768,-122.3878
+20141228CLE,2014-12-28,Cleveland Cavaliers,Detroit Pistons,41.4965,-81.688
+20141228SAS,2014-12-28,San Antonio Spurs,Houston Rockets,29.427,-98.4375
+20141228DAL,2014-12-28,Dallas Mavericks,Oklahoma City Thunder,32.7904,-96.8103
+20141228DEN,2014-12-28,Denver Nuggets,Toronto Raptors,39.7486,-105.0076
+20141228POR,2014-12-28,Portland Trail Blazers,New York Knicks,45.5316,-122.6668
+20141228LAL,2014-12-28,Los Angeles Lakers,Phoenix Suns,34.043,-118.2673
+20141229CHO,2014-12-29,Charlotte Hornets,Milwaukee Bucks,35.225,-80.8392
+20141229IND,2014-12-29,Indiana Pacers,Chicago Bulls,39.7639,-86.1555
+20141229BRK,2014-12-29,Brooklyn Nets,Sacramento Kings,40.6827,-73.9752
+20141229MIA,2014-12-29,Miami Heat,Orlando Magic,25.7814,-80.187
+20141229HOU,2014-12-29,Houston Rockets,Washington Wizards,29.7509,-95.3622
+20141229LAC,2014-12-29,Los Angeles Clippers,Utah Jazz,34.043,-118.2673
+20141230ORL,2014-12-30,Orlando Magic,Detroit Pistons,28.5392,-81.3839
+20141230ATL,2014-12-30,Atlanta Hawks,Cleveland Cavaliers,33.7573,-84.3963
+20141230CHI,2014-12-30,Chicago Bulls,Brooklyn Nets,41.8806,-87.6742
+20141230MEM,2014-12-30,Memphis Grizzlies,San Antonio Spurs,35.1381,-90.0506
+20141230NOP,2014-12-30,New Orleans Pelicans,Phoenix Suns,29.949,-90.0821
+20141230DAL,2014-12-30,Dallas Mavericks,Washington Wizards,32.7904,-96.8103
+20141230DEN,2014-12-30,Denver Nuggets,Los Angeles Lakers,39.7486,-105.0076
+20141230UTA,2014-12-30,Utah Jazz,Minnesota Timberwolves,40.7683,-111.901
+20141230POR,2014-12-30,Portland Trail Blazers,Toronto Raptors,45.5316,-122.6668
+20141230GSW,2014-12-30,Golden State Warriors,Philadelphia 76ers,37.768,-122.3878
+20141231BOS,2014-12-31,Boston Celtics,Sacramento Kings,42.3663,-71.0622
+20141231IND,2014-12-31,Indiana Pacers,Miami Heat,39.7639,-86.1555
+20141231LAC,2014-12-31,Los Angeles Clippers,New York Knicks,34.043,-118.2673
+20141231CLE,2014-12-31,Cleveland Cavaliers,Milwaukee Bucks,41.4965,-81.688
+20141231HOU,2014-12-31,Houston Rockets,Charlotte Hornets,29.7509,-95.3622
+20141231SAS,2014-12-31,San Antonio Spurs,New Orleans Pelicans,29.427,-98.4375
+20141231OKC,2014-12-31,Oklahoma City Thunder,Phoenix Suns,35.4635,-97.5151
+20150101CHI,2015-01-01,Chicago Bulls,Denver Nuggets,41.8806,-87.6742
+20150101MIN,2015-01-01,Minnesota Timberwolves,Sacramento Kings,44.9795,-93.2761
+20150102CHO,2015-01-02,Charlotte Hornets,Cleveland Cavaliers,35.225,-80.8392
+20150102ORL,2015-01-02,Orlando Magic,Brooklyn Nets,28.5392,-81.3839
+20150102BOS,2015-01-02,Boston Celtics,Dallas Mavericks,42.3663,-71.0622
+20150102NYK,2015-01-02,New York Knicks,Detroit Pistons,40.7505,-73.9934
+20150102NOP,2015-01-02,New Orleans Pelicans,Houston Rockets,29.949,-90.0821
+20150102OKC,2015-01-02,Oklahoma City Thunder,Washington Wizards,35.4635,-97.5151
+20150102MIL,2015-01-02,Milwaukee Bucks,Indiana Pacers,43.0432,-87.9168
+20150102PHO,2015-01-02,Phoenix Suns,Philadelphia 76ers,33.4457,-112.0712
+20150102UTA,2015-01-02,Utah Jazz,Atlanta Hawks,40.7683,-111.901
+20150102GSW,2015-01-02,Golden State Warriors,Toronto Raptors,37.768,-122.3878
+20150102LAL,2015-01-02,Los Angeles Lakers,Memphis Grizzlies,34.043,-118.2673
+20150103ORL,2015-01-03,Orlando Magic,Charlotte Hornets,28.5392,-81.3839
+20150103CHI,2015-01-03,Chicago Bulls,Boston Celtics,41.8806,-87.6742
+20150103HOU,2015-01-03,Houston Rockets,Miami Heat,29.7509,-95.3622
+20150103MIN,2015-01-03,Minnesota Timberwolves,Utah Jazz,44.9795,-93.2761
+20150103SAS,2015-01-03,San Antonio Spurs,Washington Wizards,29.427,-98.4375
+20150103DEN,2015-01-03,Denver Nuggets,Memphis Grizzlies,39.7486,-105.0076
+20150103POR,2015-01-03,Portland Trail Blazers,Atlanta Hawks,45.5316,-122.6668
+20150103LAC,2015-01-03,Los Angeles Clippers,Philadelphia 76ers,34.043,-118.2673
+20150104CLE,2015-01-04,Cleveland Cavaliers,Dallas Mavericks,41.4965,-81.688
+20150104DET,2015-01-04,Detroit Pistons,Sacramento Kings,42.6914,-83.2453
+20150104MIA,2015-01-04,Miami Heat,Brooklyn Nets,25.7814,-80.187
+20150104NYK,2015-01-04,New York Knicks,Milwaukee Bucks,40.7505,-73.9934
+20150104PHO,2015-01-04,Phoenix Suns,Toronto Raptors,33.4457,-112.0712
+20150104LAL,2015-01-04,Los Angeles Lakers,Indiana Pacers,34.043,-118.2673
+20150105PHI,2015-01-05,Philadelphia 76ers,Cleveland Cavaliers,39.9012,-75.172
+20150105BOS,2015-01-05,Boston Celtics,Charlotte Hornets,42.3663,-71.0622
+20150105BRK,2015-01-05,Brooklyn Nets,Dallas Mavericks,40.6827,-73.9752
+20150105CHI,2015-01-05,Chicago Bulls,Houston Rockets,41.8806,-87.6742
+20150105MEM,2015-01-05,Memphis Grizzlies,New York Knicks,35.1381,-90.0506
+20150105MIN,2015-01-05,Minnesota Timberwolves,Denver Nuggets,44.9795,-93.2761
+20150105NOP,2015-01-05,New Orleans Pelicans,Washington Wizards,29.949,-90.0821
+20150105UTA,2015-01-05,Utah Jazz,Indiana Pacers,40.7683,-111.901
+20150105POR,2015-01-05,Portland Trail Blazers,Los Angeles Lakers,45.5316,-122.6668
+20150105GSW,2015-01-05,Golden State Warriors,Oklahoma City Thunder,37.768,-122.3878
+20150105LAC,2015-01-05,Los Angeles Clippers,Atlanta Hawks,34.043,-118.2673
+20150106MIL,2015-01-06,Milwaukee Bucks,Phoenix Suns,43.0432,-87.9168
+20150106SAS,2015-01-06,San Antonio Spurs,Detroit Pistons,29.427,-98.4375
+20150107CHO,2015-01-07,Charlotte Hornets,New Orleans Pelicans,35.225,-80.8392
+20150107CLE,2015-01-07,Cleveland Cavaliers,Houston Rockets,41.4965,-81.688
+20150107PHI,2015-01-07,Philadelphia 76ers,Milwaukee Bucks,39.9012,-75.172
+20150107WAS,2015-01-07,Washington Wizards,New York Knicks,38.8982,-77.0209
+20150107ATL,2015-01-07,Atlanta Hawks,Memphis Grizzlies,33.7573,-84.3963
+20150107BRK,2015-01-07,Brooklyn Nets,Boston Celtics,40.6827,-73.9752
+20150107CHI,2015-01-07,Chicago Bulls,Utah Jazz,41.8806,-87.6742
+20150107DAL,2015-01-07,Dallas Mavericks,Detroit Pistons,32.7904,-96.8103
+20150107DEN,2015-01-07,Denver Nuggets,Orlando Magic,39.7486,-105.0076
+20150107MIN,2015-01-07,Minnesota Timberwolves,Phoenix Suns,44.9795,-93.2761
+20150107SAC,2015-01-07,Sacramento Kings,Oklahoma City Thunder,38.649,-121.518
+20150107GSW,2015-01-07,Golden State Warriors,Indiana Pacers,37.768,-122.3878
+20150107LAC,2015-01-07,Los Angeles Clippers,Los Angeles Lakers,34.043,-118.2673
+20150108TOR,2015-01-08,Toronto Raptors,Charlotte Hornets,43.6435,-79.379
+20150108NYK,2015-01-08,New York Knicks,Houston Rockets,40.7505,-73.9934
+20150108POR,2015-01-08,Portland Trail Blazers,Miami Heat,45.5316,-122.6668
+20150109IND,2015-01-09,Indiana Pacers,Boston Celtics,39.7639,-86.1555
+20150109BRK,2015-01-09,Brooklyn Nets,Philadelphia 76ers,40.6827,-73.9752
+20150109DET,2015-01-09,Detroit Pistons,Atlanta Hawks,42.6914,-83.2453
+20150109NOP,2015-01-09,New Orleans Pelicans,Memphis Grizzlies,29.949,-90.0821
+20150109OKC,2015-01-09,Oklahoma City Thunder,Utah Jazz,35.4635,-97.5151
+20150109WAS,2015-01-09,Washington Wizards,Chicago Bulls,38.8982,-77.0209
+20150109MIL,2015-01-09,Milwaukee Bucks,Minnesota Timberwolves,43.0432,-87.9168
+20150109SAS,2015-01-09,San Antonio Spurs,Phoenix Suns,29.427,-98.4375
+20150109SAC,2015-01-09,Sacramento Kings,Denver Nuggets,38.649,-121.518
+20150109GSW,2015-01-09,Golden State Warriors,Cleveland Cavaliers,37.768,-122.3878
+20150109LAL,2015-01-09,Los Angeles Lakers,Orlando Magic,34.043,-118.2673
+20150110NYK,2015-01-10,New York Knicks,Charlotte Hornets,40.7505,-73.9934
+20150110LAC,2015-01-10,Los Angeles Clippers,Dallas Mavericks,34.043,-118.2673
+20150110DET,2015-01-10,Detroit Pistons,Brooklyn Nets,42.6914,-83.2453
+20150110PHI,2015-01-10,Philadelphia 76ers,Indiana Pacers,39.9012,-75.172
+20150110TOR,2015-01-10,Toronto Raptors,Boston Celtics,43.6435,-79.379
+20150110CHI,2015-01-10,Chicago Bulls,Milwaukee Bucks,41.8806,-87.6742
+20150110HOU,2015-01-10,Houston Rockets,Utah Jazz,29.7509,-95.3622
+20150110MIN,2015-01-10,Minnesota Timberwolves,San Antonio Spurs,44.9795,-93.2761
+20150110POR,2015-01-10,Portland Trail Blazers,Orlando Magic,45.5316,-122.6668
+20150111ATL,2015-01-11,Atlanta Hawks,Washington Wizards,33.7573,-84.3963
+20150111LAC,2015-01-11,Los Angeles Clippers,Miami Heat,34.043,-118.2673
+20150111MEM,2015-01-11,Memphis Grizzlies,Phoenix Suns,35.1381,-90.0506
+20150111SAC,2015-01-11,Sacramento Kings,Cleveland Cavaliers,38.649,-121.518
+20150111LAL,2015-01-11,Los Angeles Lakers,Portland Trail Blazers,34.043,-118.2673
+20150112BOS,2015-01-12,Boston Celtics,New Orleans Pelicans,42.3663,-71.0622
+20150112BRK,2015-01-12,Brooklyn Nets,Houston Rockets,40.6827,-73.9752
+20150112TOR,2015-01-12,Toronto Raptors,Detroit Pistons,43.6435,-79.379
+20150112CHI,2015-01-12,Chicago Bulls,Orlando Magic,41.8806,-87.6742
+20150113IND,2015-01-13,Indiana Pacers,Minnesota Timberwolves,39.7639,-86.1555
+20150113PHI,2015-01-13,Philadelphia 76ers,Atlanta Hawks,39.9012,-75.172
+20150113WAS,2015-01-13,Washington Wizards,San Antonio Spurs,38.8982,-77.0209
+20150113PHO,2015-01-13,Phoenix Suns,Cleveland Cavaliers,33.4457,-112.0712
+20150113UTA,2015-01-13,Utah Jazz,Golden State Warriors,40.7683,-111.901
+20150113SAC,2015-01-13,Sacramento Kings,Dallas Mavericks,38.649,-121.518
+20150113LAL,2015-01-13,Los Angeles Lakers,Miami Heat,34.043,-118.2673
+20150114CHO,2015-01-14,Charlotte Hornets,San Antonio Spurs,35.225,-80.8392
+20150114ORL,2015-01-14,Orlando Magic,Houston Rockets,28.5392,-81.3839
+20150114BRK,2015-01-14,Brooklyn Nets,Memphis Grizzlies,40.6827,-73.9752
+20150114DET,2015-01-14,Detroit Pistons,New Orleans Pelicans,42.6914,-83.2453
+20150114TOR,2015-01-14,Toronto Raptors,Philadelphia 76ers,43.6435,-79.379
+20150114BOS,2015-01-14,Boston Celtics,Atlanta Hawks,42.3663,-71.0622
+20150114CHI,2015-01-14,Chicago Bulls,Washington Wizards,41.8806,-87.6742
+20150114DEN,2015-01-14,Denver Nuggets,Dallas Mavericks,39.7486,-105.0076
+20150114GSW,2015-01-14,Golden State Warriors,Miami Heat,37.768,-122.3878
+20150114POR,2015-01-14,Portland Trail Blazers,Los Angeles Clippers,45.5316,-122.6668
+20150115MIL,2015-01-15,Milwaukee Bucks,New York Knicks,51.503,0.0032
+20150115HOU,2015-01-15,Houston Rockets,Oklahoma City Thunder,29.7509,-95.3622
+20150115LAL,2015-01-15,Los Angeles Lakers,Cleveland Cavaliers,34.043,-118.2673
+20150116IND,2015-01-16,Indiana Pacers,Detroit Pistons,39.7639,-86.1555
+20150116ORL,2015-01-16,Orlando Magic,Memphis Grizzlies,28.5392,-81.3839
+20150116PHI,2015-01-16,Philadelphia 76ers,New Orleans Pelicans,39.9012,-75.172
+20150116WAS,2015-01-16,Washington Wizards,Brooklyn Nets,38.8982,-77.0209
+20150116BOS,2015-01-16,Boston Celtics,Chicago Bulls,42.3663,-71.0622
+20150116TOR,2015-01-16,Toronto Raptors,Atlanta Hawks,43.6435,-79.379
+20150116OKC,2015-01-16,Oklahoma City Thunder,Golden State Warriors,35.4635,-97.5151
+20150116DAL,2015-01-16,Dallas Mavericks,Denver Nuggets,32.7904,-96.8103
+20150116SAS,2015-01-16,San Antonio Spurs,Portland Trail Blazers,29.427,-98.4375
+20150116PHO,2015-01-16,Phoenix Suns,Minnesota Timberwolves,33.4457,-112.0712
+20150116UTA,2015-01-16,Utah Jazz,Los Angeles Lakers,40.7683,-111.901
+20150116SAC,2015-01-16,Sacramento Kings,Miami Heat,38.649,-121.518
+20150116LAC,2015-01-16,Los Angeles Clippers,Cleveland Cavaliers,34.043,-118.2673
+20150117CHO,2015-01-17,Charlotte Hornets,Indiana Pacers,35.225,-80.8392
+20150117DET,2015-01-17,Detroit Pistons,Philadelphia 76ers,42.6914,-83.2453
+20150117BRK,2015-01-17,Brooklyn Nets,Washington Wizards,40.6827,-73.9752
+20150117CHI,2015-01-17,Chicago Bulls,Atlanta Hawks,41.8806,-87.6742
+20150117HOU,2015-01-17,Houston Rockets,Golden State Warriors,29.7509,-95.3622
+20150117DEN,2015-01-17,Denver Nuggets,Minnesota Timberwolves,39.7486,-105.0076
+20150117MEM,2015-01-17,Memphis Grizzlies,Portland Trail Blazers,35.1381,-90.0506
+20150117SAC,2015-01-17,Sacramento Kings,Los Angeles Clippers,38.649,-121.518
+20150118TOR,2015-01-18,Toronto Raptors,New Orleans Pelicans,43.6435,-79.379
+20150118ORL,2015-01-18,Orlando Magic,Oklahoma City Thunder,28.5392,-81.3839
+20150118SAS,2015-01-18,San Antonio Spurs,Utah Jazz,29.427,-98.4375
+20150119CHO,2015-01-19,Charlotte Hornets,Minnesota Timberwolves,35.225,-80.8392
+20150119WAS,2015-01-19,Washington Wizards,Philadelphia 76ers,38.8982,-77.0209
+20150119ATL,2015-01-19,Atlanta Hawks,Detroit Pistons,33.7573,-84.3963
+20150119LAC,2015-01-19,Los Angeles Clippers,Boston Celtics,34.043,-118.2673
+20150119GSW,2015-01-19,Golden State Warriors,Denver Nuggets,37.768,-122.3878
+20150119MEM,2015-01-19,Memphis Grizzlies,Dallas Mavericks,35.1381,-90.0506
+20150119HOU,2015-01-19,Houston Rockets,Indiana Pacers,29.7509,-95.3622
+20150119NYK,2015-01-19,New York Knicks,New Orleans Pelicans,40.7505,-73.9934
+20150119CLE,2015-01-19,Cleveland Cavaliers,Chicago Bulls,41.4965,-81.688
+20150119MIL,2015-01-19,Milwaukee Bucks,Toronto Raptors,43.0432,-87.9168
+20150119PHO,2015-01-19,Phoenix Suns,Los Angeles Lakers,33.4457,-112.0712
+20150119POR,2015-01-19,Portland Trail Blazers,Sacramento Kings,45.5316,-122.6668
+20150120MIA,2015-01-20,Miami Heat,Oklahoma City Thunder,25.7814,-80.187
+20150120DEN,2015-01-20,Denver Nuggets,San Antonio Spurs,39.7486,-105.0076
+20150121CHO,2015-01-21,Charlotte Hornets,Miami Heat,35.225,-80.8392
+20150121CLE,2015-01-21,Cleveland Cavaliers,Utah Jazz,41.4965,-81.688
+20150121PHI,2015-01-21,Philadelphia 76ers,New York Knicks,39.9012,-75.172
+20150121ATL,2015-01-21,Atlanta Hawks,Indiana Pacers,33.7573,-84.3963
+20150121DET,2015-01-21,Detroit Pistons,Orlando Magic,42.6914,-83.2453
+20150121MEM,2015-01-21,Memphis Grizzlies,Toronto Raptors,35.1381,-90.0506
+20150121MIN,2015-01-21,Minnesota Timberwolves,Dallas Mavericks,44.9795,-93.2761
+20150121NOP,2015-01-21,New Orleans Pelicans,Los Angeles Lakers,29.949,-90.0821
+20150121WAS,2015-01-21,Washington Wizards,Oklahoma City Thunder,38.8982,-77.0209
+20150121PHO,2015-01-21,Phoenix Suns,Portland Trail Blazers,33.4457,-112.0712
+20150121SAC,2015-01-21,Sacramento Kings,Brooklyn Nets,38.649,-121.518
+20150121GSW,2015-01-21,Golden State Warriors,Houston Rockets,37.768,-122.3878
+20150122CHI,2015-01-22,Chicago Bulls,San Antonio Spurs,41.8806,-87.6742
+20150122MIL,2015-01-22,Milwaukee Bucks,Utah Jazz,43.0432,-87.9168
+20150122POR,2015-01-22,Portland Trail Blazers,Boston Celtics,45.5316,-122.6668
+20150122LAC,2015-01-22,Los Angeles Clippers,Brooklyn Nets,34.043,-118.2673
+20150123PHI,2015-01-23,Philadelphia 76ers,Toronto Raptors,39.9012,-75.172
+20150123ATL,2015-01-23,Atlanta Hawks,Oklahoma City Thunder,33.7573,-84.3963
+20150123CLE,2015-01-23,Cleveland Cavaliers,Charlotte Hornets,41.4965,-81.688
+20150123MIA,2015-01-23,Miami Heat,Indiana Pacers,25.7814,-80.187
+20150123NYK,2015-01-23,New York Knicks,Orlando Magic,40.7505,-73.9934
+20150123DAL,2015-01-23,Dallas Mavericks,Chicago Bulls,32.7904,-96.8103
+20150123MIN,2015-01-23,Minnesota Timberwolves,New Orleans Pelicans,44.9795,-93.2761
+20150123SAS,2015-01-23,San Antonio Spurs,Los Angeles Lakers,29.427,-98.4375
+20150123DEN,2015-01-23,Denver Nuggets,Boston Celtics,39.7486,-105.0076
+20150123PHO,2015-01-23,Phoenix Suns,Houston Rockets,33.4457,-112.0712
+20150123GSW,2015-01-23,Golden State Warriors,Sacramento Kings,37.768,-122.3878
+20150124CHO,2015-01-24,Charlotte Hornets,New York Knicks,35.225,-80.8392
+20150124MIL,2015-01-24,Milwaukee Bucks,Detroit Pistons,43.0432,-87.9168
+20150124MEM,2015-01-24,Memphis Grizzlies,Philadelphia 76ers,35.1381,-90.0506
+20150124UTA,2015-01-24,Utah Jazz,Brooklyn Nets,40.7683,-111.901
+20150124POR,2015-01-24,Portland Trail Blazers,Washington Wizards,45.5316,-122.6668
+20150125CHI,2015-01-25,Chicago Bulls,Miami Heat,41.8806,-87.6742
+20150125CLE,2015-01-25,Cleveland Cavaliers,Oklahoma City Thunder,41.4965,-81.688
+20150125ATL,2015-01-25,Atlanta Hawks,Minnesota Timberwolves,33.7573,-84.3963
+20150125NOP,2015-01-25,New Orleans Pelicans,Dallas Mavericks,29.949,-90.0821
+20150125ORL,2015-01-25,Orlando Magic,Indiana Pacers,28.5392,-81.3839
+20150125PHO,2015-01-25,Phoenix Suns,Los Angeles Clippers,33.4457,-112.0712
+20150125SAS,2015-01-25,San Antonio Spurs,Milwaukee Bucks,29.427,-98.4375
+20150125TOR,2015-01-25,Toronto Raptors,Detroit Pistons,43.6435,-79.379
+20150125DEN,2015-01-25,Denver Nuggets,Washington Wizards,39.7486,-105.0076
+20150125GSW,2015-01-25,Golden State Warriors,Boston Celtics,37.768,-122.3878
+20150125LAL,2015-01-25,Los Angeles Lakers,Houston Rockets,34.043,-118.2673
+20150126MEM,2015-01-26,Memphis Grizzlies,Orlando Magic,35.1381,-90.0506
+20150126NOP,2015-01-26,New Orleans Pelicans,Philadelphia 76ers,29.949,-90.0821
+20150126OKC,2015-01-26,Oklahoma City Thunder,Minnesota Timberwolves,35.4635,-97.5151
+20150126UTA,2015-01-26,Utah Jazz,Boston Celtics,40.7683,-111.901
+20150126LAC,2015-01-26,Los Angeles Clippers,Denver Nuggets,34.043,-118.2673
+20150127IND,2015-01-27,Indiana Pacers,Toronto Raptors,39.7639,-86.1555
+20150127DET,2015-01-27,Detroit Pistons,Cleveland Cavaliers,42.6914,-83.2453
+20150127MIA,2015-01-27,Miami Heat,Milwaukee Bucks,25.7814,-80.187
+20150127DAL,2015-01-27,Dallas Mavericks,Memphis Grizzlies,32.7904,-96.8103
+20150127GSW,2015-01-27,Golden State Warriors,Chicago Bulls,37.768,-122.3878
+20150127LAL,2015-01-27,Los Angeles Lakers,Washington Wizards,34.043,-118.2673
+20150128CLE,2015-01-28,Cleveland Cavaliers,Portland Trail Blazers,41.4965,-81.688
+20150128PHI,2015-01-28,Philadelphia 76ers,Detroit Pistons,39.9012,-75.172
+20150128TOR,2015-01-28,Toronto Raptors,Sacramento Kings,43.6435,-79.379
+20150128ATL,2015-01-28,Atlanta Hawks,Brooklyn Nets,33.7573,-84.3963
+20150128HOU,2015-01-28,Houston Rockets,Dallas Mavericks,29.7509,-95.3622
+20150128MIN,2015-01-28,Minnesota Timberwolves,Boston Celtics,44.9795,-93.2761
+20150128NOP,2015-01-28,New Orleans Pelicans,Denver Nuggets,29.949,-90.0821
+20150128NYK,2015-01-28,New York Knicks,Oklahoma City Thunder,40.7505,-73.9934
+20150128SAS,2015-01-28,San Antonio Spurs,Charlotte Hornets,29.427,-98.4375
+20150128UTA,2015-01-28,Utah Jazz,Los Angeles Clippers,40.7683,-111.901
+20150128PHO,2015-01-28,Phoenix Suns,Washington Wizards,33.4457,-112.0712
+20150129IND,2015-01-29,Indiana Pacers,New York Knicks,39.7639,-86.1555
+20150129ORL,2015-01-29,Orlando Magic,Milwaukee Bucks,28.5392,-81.3839
+20150129MEM,2015-01-29,Memphis Grizzlies,Denver Nuggets,35.1381,-90.0506
+20150129LAL,2015-01-29,Los Angeles Lakers,Chicago Bulls,34.043,-118.2673
+20150130PHI,2015-01-30,Philadelphia 76ers,Minnesota Timberwolves,39.9012,-75.172
+20150130ATL,2015-01-30,Atlanta Hawks,Portland Trail Blazers,33.7573,-84.3963
+20150130BOS,2015-01-30,Boston Celtics,Houston Rockets,42.3663,-71.0622
+20150130BRK,2015-01-30,Brooklyn Nets,Toronto Raptors,40.6827,-73.9752
+20150130CLE,2015-01-30,Cleveland Cavaliers,Sacramento Kings,41.4965,-81.688
+20150130MIA,2015-01-30,Miami Heat,Dallas Mavericks,25.7814,-80.187
+20150130NOP,2015-01-30,New Orleans Pelicans,Los Angeles Clippers,29.949,-90.0821
+20150130UTA,2015-01-30,Utah Jazz,Golden State Warriors,40.7683,-111.901
+20150130PHO,2015-01-30,Phoenix Suns,Chicago Bulls,33.4457,-112.0712
+20150131IND,2015-01-31,Indiana Pacers,Sacramento Kings,39.7639,-86.1555
+20150131ORL,2015-01-31,Orlando Magic,Dallas Mavericks,28.5392,-81.3839
+20150131WAS,2015-01-31,Washington Wizards,Toronto Raptors,38.8982,-77.0209
+20150131ATL,2015-01-31,Atlanta Hawks,Philadelphia 76ers,33.7573,-84.3963
+20150131DET,2015-01-31,Detroit Pistons,Houston Rockets,42.6914,-83.2453
+20150131MEM,2015-01-31,Memphis Grizzlies,Oklahoma City Thunder,35.1381,-90.0506
+20150131MIN,2015-01-31,Minnesota Timberwolves,Cleveland Cavaliers,44.9795,-93.2761
+20150131MIL,2015-01-31,Milwaukee Bucks,Portland Trail Blazers,43.0432,-87.9168
+20150131DEN,2015-01-31,Denver Nuggets,Charlotte Hornets,39.7486,-105.0076
+20150131SAS,2015-01-31,San Antonio Spurs,Los Angeles Clippers,29.427,-98.4375
+20150131GSW,2015-01-31,Golden State Warriors,Phoenix Suns,37.768,-122.3878
+20150201BOS,2015-02-01,Boston Celtics,Miami Heat,42.3663,-71.0622
+20150201NYK,2015-02-01,New York Knicks,Los Angeles Lakers,40.7505,-73.9934
+20150202CLE,2015-02-02,Cleveland Cavaliers,Philadelphia 76ers,41.4965,-81.688
+20150202WAS,2015-02-02,Washington Wizards,Charlotte Hornets,38.8982,-77.0209
+20150202BRK,2015-02-02,Brooklyn Nets,Los Angeles Clippers,40.6827,-73.9752
+20150202TOR,2015-02-02,Toronto Raptors,Milwaukee Bucks,43.6435,-79.379
+20150202NOP,2015-02-02,New Orleans Pelicans,Atlanta Hawks,29.949,-90.0821
+20150202OKC,2015-02-02,Oklahoma City Thunder,Orlando Magic,35.4635,-97.5151
+20150202DAL,2015-02-02,Dallas Mavericks,Minnesota Timberwolves,32.7904,-96.8103
+20150202PHO,2015-02-02,Phoenix Suns,Memphis Grizzlies,33.4457,-112.0712
+20150203PHI,2015-02-03,Philadelphia 76ers,Denver Nuggets,39.9012,-75.172
+20150203DET,2015-02-03,Detroit Pistons,Miami Heat,42.6914,-83.2453
+20150203NYK,2015-02-03,New York Knicks,Boston Celtics,40.7505,-73.9934
+20150203POR,2015-02-03,Portland Trail Blazers,Utah Jazz,45.5316,-122.6668
+20150203SAC,2015-02-03,Sacramento Kings,Golden State Warriors,38.649,-121.518
+20150204IND,2015-02-04,Indiana Pacers,Detroit Pistons,39.7639,-86.1555
+20150204ATL,2015-02-04,Atlanta Hawks,Washington Wizards,33.7573,-84.3963
+20150204BOS,2015-02-04,Boston Celtics,Denver Nuggets,42.3663,-71.0622
+20150204TOR,2015-02-04,Toronto Raptors,Brooklyn Nets,43.6435,-79.379
+20150204HOU,2015-02-04,Houston Rockets,Chicago Bulls,29.7509,-95.3622
+20150204MIL,2015-02-04,Milwaukee Bucks,Los Angeles Lakers,43.0432,-87.9168
+20150204MIN,2015-02-04,Minnesota Timberwolves,Miami Heat,44.9795,-93.2761
+20150204NOP,2015-02-04,New Orleans Pelicans,Oklahoma City Thunder,29.949,-90.0821
+20150204SAS,2015-02-04,San Antonio Spurs,Orlando Magic,29.427,-98.4375
+20150204UTA,2015-02-04,Utah Jazz,Memphis Grizzlies,40.7683,-111.901
+20150204GSW,2015-02-04,Golden State Warriors,Dallas Mavericks,37.768,-122.3878
+20150205CHO,2015-02-05,Charlotte Hornets,Washington Wizards,35.225,-80.8392
+20150205CLE,2015-02-05,Cleveland Cavaliers,Los Angeles Clippers,41.4965,-81.688
+20150205SAC,2015-02-05,Sacramento Kings,Dallas Mavericks,38.649,-121.518
+20150205POR,2015-02-05,Portland Trail Blazers,Phoenix Suns,45.5316,-122.6668
+20150206BRK,2015-02-06,Brooklyn Nets,New York Knicks,40.6827,-73.9752
+20150206IND,2015-02-06,Indiana Pacers,Cleveland Cavaliers,39.7639,-86.1555
+20150206ORL,2015-02-06,Orlando Magic,Los Angeles Lakers,28.5392,-81.3839
+20150206TOR,2015-02-06,Toronto Raptors,Los Angeles Clippers,43.6435,-79.379
+20150206ATL,2015-02-06,Atlanta Hawks,Golden State Warriors,33.7573,-84.3963
+20150206BOS,2015-02-06,Boston Celtics,Philadelphia 76ers,42.3663,-71.0622
+20150206DET,2015-02-06,Detroit Pistons,Denver Nuggets,42.6914,-83.2453
+20150206HOU,2015-02-06,Houston Rockets,Milwaukee Bucks,29.7509,-95.3622
+20150206MIN,2015-02-06,Minnesota Timberwolves,Memphis Grizzlies,44.9795,-93.2761
+20150206OKC,2015-02-06,Oklahoma City Thunder,New Orleans Pelicans,35.4635,-97.5151
+20150206PHO,2015-02-06,Phoenix Suns,Utah Jazz,33.4457,-112.0712
+20150206SAS,2015-02-06,San Antonio Spurs,Miami Heat,29.427,-98.4375
+20150207NOP,2015-02-07,New Orleans Pelicans,Chicago Bulls,29.949,-90.0821
+20150207WAS,2015-02-07,Washington Wizards,Brooklyn Nets,38.8982,-77.0209
+20150207NYK,2015-02-07,New York Knicks,Golden State Warriors,40.7505,-73.9934
+20150207PHI,2015-02-07,Philadelphia 76ers,Charlotte Hornets,39.9012,-75.172
+20150207DAL,2015-02-07,Dallas Mavericks,Portland Trail Blazers,32.7904,-96.8103
+20150207MIL,2015-02-07,Milwaukee Bucks,Boston Celtics,43.0432,-87.9168
+20150207UTA,2015-02-07,Utah Jazz,Sacramento Kings,40.7683,-111.901
+20150208OKC,2015-02-08,Oklahoma City Thunder,Los Angeles Clippers,35.4635,-97.5151
+20150208CLE,2015-02-08,Cleveland Cavaliers,Los Angeles Lakers,41.4965,-81.688
+20150208CHO,2015-02-08,Charlotte Hornets,Indiana Pacers,35.225,-80.8392
+20150208DET,2015-02-08,Detroit Pistons,Minnesota Timberwolves,42.6914,-83.2453
+20150208MEM,2015-02-08,Memphis Grizzlies,Atlanta Hawks,35.1381,-90.0506
+20150208ORL,2015-02-08,Orlando Magic,Chicago Bulls,28.5392,-81.3839
+20150208HOU,2015-02-08,Houston Rockets,Portland Trail Blazers,29.7509,-95.3622
+20150208TOR,2015-02-08,Toronto Raptors,San Antonio Spurs,43.6435,-79.379
+20150208SAC,2015-02-08,Sacramento Kings,Phoenix Suns,38.649,-121.518
+20150209IND,2015-02-09,Indiana Pacers,San Antonio Spurs,39.7639,-86.1555
+20150209PHI,2015-02-09,Philadelphia 76ers,Golden State Warriors,39.9012,-75.172
+20150209WAS,2015-02-09,Washington Wizards,Orlando Magic,38.8982,-77.0209
+20150209MIA,2015-02-09,Miami Heat,New York Knicks,25.7814,-80.187
+20150209MIL,2015-02-09,Milwaukee Bucks,Brooklyn Nets,43.0432,-87.9168
+20150209MIN,2015-02-09,Minnesota Timberwolves,Atlanta Hawks,44.9795,-93.2761
+20150209NOP,2015-02-09,New Orleans Pelicans,Utah Jazz,29.949,-90.0821
+20150209DAL,2015-02-09,Dallas Mavericks,Los Angeles Clippers,32.7904,-96.8103
+20150209DEN,2015-02-09,Denver Nuggets,Oklahoma City Thunder,39.7486,-105.0076
+20150210CHO,2015-02-10,Charlotte Hornets,Detroit Pistons,35.225,-80.8392
+20150210CHI,2015-02-10,Chicago Bulls,Sacramento Kings,41.8806,-87.6742
+20150210MEM,2015-02-10,Memphis Grizzlies,Brooklyn Nets,35.1381,-90.0506
+20150210PHO,2015-02-10,Phoenix Suns,Houston Rockets,33.4457,-112.0712
+20150210LAL,2015-02-10,Los Angeles Lakers,Denver Nuggets,34.043,-118.2673
+20150211ORL,2015-02-11,Orlando Magic,New York Knicks,28.5392,-81.3839
+20150211BOS,2015-02-11,Boston Celtics,Atlanta Hawks,42.3663,-71.0622
+20150211DET,2015-02-11,Detroit Pistons,San Antonio Spurs,42.6914,-83.2453
+20150211TOR,2015-02-11,Toronto Raptors,Washington Wizards,43.6435,-79.379
+20150211CLE,2015-02-11,Cleveland Cavaliers,Miami Heat,41.4965,-81.688
+20150211MIL,2015-02-11,Milwaukee Bucks,Sacramento Kings,43.0432,-87.9168
+20150211MIN,2015-02-11,Minnesota Timberwolves,Golden State Warriors,44.9795,-93.2761
+20150211NOP,2015-02-11,New Orleans Pelicans,Indiana Pacers,29.949,-90.0821
+20150211OKC,2015-02-11,Oklahoma City Thunder,Memphis Grizzlies,35.4635,-97.5151
+20150211DAL,2015-02-11,Dallas Mavericks,Utah Jazz,32.7904,-96.8103
+20150211POR,2015-02-11,Portland Trail Blazers,Los Angeles Lakers,45.5316,-122.6668
+20150211LAC,2015-02-11,Los Angeles Clippers,Houston Rockets,34.043,-118.2673
+20150212CHI,2015-02-12,Chicago Bulls,Cleveland Cavaliers,41.8806,-87.6742
+20150219OKC,2015-02-19,Oklahoma City Thunder,Dallas Mavericks,35.4635,-97.5151
+20150219LAC,2015-02-19,Los Angeles Clippers,San Antonio Spurs,34.043,-118.2673
+20150220ORL,2015-02-20,Orlando Magic,New Orleans Pelicans,28.5392,-81.3839
+20150220PHI,2015-02-20,Philadelphia 76ers,Indiana Pacers,39.9012,-75.172
+20150220ATL,2015-02-20,Atlanta Hawks,Toronto Raptors,33.7573,-84.3963
+20150220DET,2015-02-20,Detroit Pistons,Chicago Bulls,42.6914,-83.2453
+20150220NYK,2015-02-20,New York Knicks,Miami Heat,40.7505,-73.9934
+20150220MIN,2015-02-20,Minnesota Timberwolves,Phoenix Suns,44.9795,-93.2761
+20150220WAS,2015-02-20,Washington Wizards,Cleveland Cavaliers,38.8982,-77.0209
+20150220DAL,2015-02-20,Dallas Mavericks,Houston Rockets,32.7904,-96.8103
+20150220MIL,2015-02-20,Milwaukee Bucks,Denver Nuggets,43.0432,-87.9168
+20150220UTA,2015-02-20,Utah Jazz,Portland Trail Blazers,40.7683,-111.901
+20150220SAC,2015-02-20,Sacramento Kings,Boston Celtics,38.649,-121.518
+20150220GSW,2015-02-20,Golden State Warriors,San Antonio Spurs,37.768,-122.3878
+20150220LAL,2015-02-20,Los Angeles Lakers,Brooklyn Nets,34.043,-118.2673
+20150221CHO,2015-02-21,Charlotte Hornets,Oklahoma City Thunder,35.225,-80.8392
+20150221MIA,2015-02-21,Miami Heat,New Orleans Pelicans,25.7814,-80.187
+20150221CHI,2015-02-21,Chicago Bulls,Phoenix Suns,41.8806,-87.6742
+20150221HOU,2015-02-21,Houston Rockets,Toronto Raptors,29.7509,-95.3622
+20150221LAC,2015-02-21,Los Angeles Clippers,Sacramento Kings,34.043,-118.2673
+20150222NYK,2015-02-22,New York Knicks,Cleveland Cavaliers,40.7505,-73.9934
+20150222DET,2015-02-22,Detroit Pistons,Washington Wizards,42.6914,-83.2453
+20150222MIL,2015-02-22,Milwaukee Bucks,Atlanta Hawks,43.0432,-87.9168
+20150222IND,2015-02-22,Indiana Pacers,Golden State Warriors,39.7639,-86.1555
+20150222ORL,2015-02-22,Orlando Magic,Philadelphia 76ers,28.5392,-81.3839
+20150222OKC,2015-02-22,Oklahoma City Thunder,Denver Nuggets,35.4635,-97.5151
+20150222DAL,2015-02-22,Dallas Mavericks,Charlotte Hornets,32.7904,-96.8103
+20150222POR,2015-02-22,Portland Trail Blazers,Memphis Grizzlies,45.5316,-122.6668
+20150222LAL,2015-02-22,Los Angeles Lakers,Boston Celtics,34.043,-118.2673
+20150223MIA,2015-02-23,Miami Heat,Philadelphia 76ers,25.7814,-80.187
+20150223CHI,2015-02-23,Chicago Bulls,Milwaukee Bucks,41.8806,-87.6742
+20150223HOU,2015-02-23,Houston Rockets,Minnesota Timberwolves,29.7509,-95.3622
+20150223NOP,2015-02-23,New Orleans Pelicans,Toronto Raptors,29.949,-90.0821
+20150223DEN,2015-02-23,Denver Nuggets,Brooklyn Nets,39.7486,-105.0076
+20150223PHO,2015-02-23,Phoenix Suns,Boston Celtics,33.4457,-112.0712
+20150223UTA,2015-02-23,Utah Jazz,San Antonio Spurs,40.7683,-111.901
+20150223LAC,2015-02-23,Los Angeles Clippers,Memphis Grizzlies,34.043,-118.2673
+20150224WAS,2015-02-24,Washington Wizards,Golden State Warriors,38.8982,-77.0209
+20150224DET,2015-02-24,Detroit Pistons,Cleveland Cavaliers,42.6914,-83.2453
+20150224OKC,2015-02-24,Oklahoma City Thunder,Indiana Pacers,35.4635,-97.5151
+20150224DAL,2015-02-24,Dallas Mavericks,Toronto Raptors,32.7904,-96.8103
+20150225ORL,2015-02-25,Orlando Magic,Miami Heat,28.5392,-81.3839
+20150225ATL,2015-02-25,Atlanta Hawks,Dallas Mavericks,33.7573,-84.3963
+20150225BOS,2015-02-25,Boston Celtics,New York Knicks,42.3663,-71.0622
+20150225CHI,2015-02-25,Chicago Bulls,Charlotte Hornets,41.8806,-87.6742
+20150225HOU,2015-02-25,Houston Rockets,Los Angeles Clippers,29.7509,-95.3622
+20150225MIL,2015-02-25,Milwaukee Bucks,Philadelphia 76ers,43.0432,-87.9168
+20150225MIN,2015-02-25,Minnesota Timberwolves,Washington Wizards,44.9795,-93.2761
+20150225NOP,2015-02-25,New Orleans Pelicans,Brooklyn Nets,29.949,-90.0821
+20150225DEN,2015-02-25,Denver Nuggets,Phoenix Suns,39.7486,-105.0076
+20150225UTA,2015-02-25,Utah Jazz,Los Angeles Lakers,40.7683,-111.901
+20150225SAC,2015-02-25,Sacramento Kings,Memphis Grizzlies,38.649,-121.518
+20150225POR,2015-02-25,Portland Trail Blazers,San Antonio Spurs,45.5316,-122.6668
+20150226CLE,2015-02-26,Cleveland Cavaliers,Golden State Warriors,41.4965,-81.688
+20150226PHO,2015-02-26,Phoenix Suns,Oklahoma City Thunder,33.4457,-112.0712
+20150227IND,2015-02-27,Indiana Pacers,Cleveland Cavaliers,39.7639,-86.1555
+20150227PHI,2015-02-27,Philadelphia 76ers,Washington Wizards,39.9012,-75.172
+20150227ATL,2015-02-27,Atlanta Hawks,Orlando Magic,33.7573,-84.3963
+20150227BOS,2015-02-27,Boston Celtics,Charlotte Hornets,42.3663,-71.0622
+20150227DET,2015-02-27,Detroit Pistons,New York Knicks,42.6914,-83.2453
+20150227TOR,2015-02-27,Toronto Raptors,Golden State Warriors,43.6435,-79.379
+20150227CHI,2015-02-27,Chicago Bulls,Minnesota Timberwolves,41.8806,-87.6742
+20150227HOU,2015-02-27,Houston Rockets,Brooklyn Nets,29.7509,-95.3622
+20150227MEM,2015-02-27,Memphis Grizzlies,Los Angeles Clippers,35.1381,-90.0506
+20150227NOP,2015-02-27,New Orleans Pelicans,Miami Heat,29.949,-90.0821
+20150227DEN,2015-02-27,Denver Nuggets,Utah Jazz,39.7486,-105.0076
+20150227SAC,2015-02-27,Sacramento Kings,San Antonio Spurs,38.649,-121.518
+20150227LAL,2015-02-27,Los Angeles Lakers,Milwaukee Bucks,34.043,-118.2673
+20150227POR,2015-02-27,Portland Trail Blazers,Oklahoma City Thunder,45.5316,-122.6668
+20150228WAS,2015-02-28,Washington Wizards,Detroit Pistons,38.8982,-77.0209
+20150228MIA,2015-02-28,Miami Heat,Atlanta Hawks,25.7814,-80.187
+20150228NYK,2015-02-28,New York Knicks,Toronto Raptors,40.7505,-73.9934
+20150228MIN,2015-02-28,Minnesota Timberwolves,Memphis Grizzlies,44.9795,-93.2761
+20150228DAL,2015-02-28,Dallas Mavericks,Brooklyn Nets,32.7904,-96.8103
+20150228PHO,2015-02-28,Phoenix Suns,San Antonio Spurs,33.4457,-112.0712
+20150228UTA,2015-02-28,Utah Jazz,Milwaukee Bucks,40.7683,-111.901
+20150301CHI,2015-03-01,Chicago Bulls,Los Angeles Clippers,41.8806,-87.6742
+20150301HOU,2015-03-01,Houston Rockets,Cleveland Cavaliers,29.7509,-95.3622
+20150301BOS,2015-03-01,Boston Celtics,Golden State Warriors,42.3663,-71.0622
+20150301IND,2015-03-01,Indiana Pacers,Philadelphia 76ers,39.7639,-86.1555
+20150301ORL,2015-03-01,Orlando Magic,Charlotte Hornets,28.5392,-81.3839
+20150301SAC,2015-03-01,Sacramento Kings,Portland Trail Blazers,38.649,-121.518
+20150301LAL,2015-03-01,Los Angeles Lakers,Oklahoma City Thunder,34.043,-118.2673
+20150301DEN,2015-03-01,Denver Nuggets,New Orleans Pelicans,39.7486,-105.0076
+20150302PHI,2015-03-02,Philadelphia 76ers,Toronto Raptors,39.9012,-75.172
+20150302BRK,2015-03-02,Brooklyn Nets,Golden State Warriors,40.6827,-73.9752
+20150302MIA,2015-03-02,Miami Heat,Phoenix Suns,25.7814,-80.187
+20150302MIN,2015-03-02,Minnesota Timberwolves,Los Angeles Clippers,44.9795,-93.2761
+20150302DAL,2015-03-02,Dallas Mavericks,New Orleans Pelicans,32.7904,-96.8103
+20150303CHO,2015-03-03,Charlotte Hornets,Los Angeles Lakers,35.225,-80.8392
+20150303CLE,2015-03-03,Cleveland Cavaliers,Boston Celtics,41.4965,-81.688
+20150303NYK,2015-03-03,New York Knicks,Sacramento Kings,40.7505,-73.9934
+20150303ATL,2015-03-03,Atlanta Hawks,Houston Rockets,33.7573,-84.3963
+20150303CHI,2015-03-03,Chicago Bulls,Washington Wizards,41.8806,-87.6742
+20150303MEM,2015-03-03,Memphis Grizzlies,Utah Jazz,35.1381,-90.0506
+20150303DEN,2015-03-03,Denver Nuggets,Milwaukee Bucks,39.7486,-105.0076
+20150304IND,2015-03-04,Indiana Pacers,New York Knicks,39.7639,-86.1555
+20150304ORL,2015-03-04,Orlando Magic,Phoenix Suns,28.5392,-81.3839
+20150304BOS,2015-03-04,Boston Celtics,Utah Jazz,42.3663,-71.0622
+20150304BRK,2015-03-04,Brooklyn Nets,Charlotte Hornets,40.6827,-73.9752
+20150304TOR,2015-03-04,Toronto Raptors,Cleveland Cavaliers,43.6435,-79.379
+20150304HOU,2015-03-04,Houston Rockets,Memphis Grizzlies,29.7509,-95.3622
+20150304MIA,2015-03-04,Miami Heat,Los Angeles Lakers,25.7814,-80.187
+20150304MIN,2015-03-04,Minnesota Timberwolves,Denver Nuggets,44.9795,-93.2761
+20150304NOP,2015-03-04,New Orleans Pelicans,Detroit Pistons,29.949,-90.0821
+20150304OKC,2015-03-04,Oklahoma City Thunder,Philadelphia 76ers,35.4635,-97.5151
+20150304SAS,2015-03-04,San Antonio Spurs,Sacramento Kings,29.427,-98.4375
+20150304GSW,2015-03-04,Golden State Warriors,Milwaukee Bucks,37.768,-122.3878
+20150304LAC,2015-03-04,Los Angeles Clippers,Portland Trail Blazers,34.043,-118.2673
+20150305CHI,2015-03-05,Chicago Bulls,Oklahoma City Thunder,41.8806,-87.6742
+20150305POR,2015-03-05,Portland Trail Blazers,Dallas Mavericks,45.5316,-122.6668
+20150306CHO,2015-03-06,Charlotte Hornets,Toronto Raptors,35.225,-80.8392
+20150306IND,2015-03-06,Indiana Pacers,Chicago Bulls,39.7639,-86.1555
+20150306ORL,2015-03-06,Orlando Magic,Sacramento Kings,28.5392,-81.3839
+20150306PHI,2015-03-06,Philadelphia 76ers,Utah Jazz,39.9012,-75.172
+20150306WAS,2015-03-06,Washington Wizards,Miami Heat,38.8982,-77.0209
+20150306ATL,2015-03-06,Atlanta Hawks,Cleveland Cavaliers,33.7573,-84.3963
+20150306BRK,2015-03-06,Brooklyn Nets,Phoenix Suns,40.6827,-73.9752
+20150306HOU,2015-03-06,Houston Rockets,Detroit Pistons,29.7509,-95.3622
+20150306MEM,2015-03-06,Memphis Grizzlies,Los Angeles Lakers,35.1381,-90.0506
+20150306NOP,2015-03-06,New Orleans Pelicans,Boston Celtics,29.949,-90.0821
+20150306SAS,2015-03-06,San Antonio Spurs,Denver Nuggets,29.427,-98.4375
+20150306GSW,2015-03-06,Golden State Warriors,Dallas Mavericks,37.768,-122.3878
+20150307NOP,2015-03-07,New Orleans Pelicans,Memphis Grizzlies,29.949,-90.0821
+20150307CLE,2015-03-07,Cleveland Cavaliers,Phoenix Suns,41.4965,-81.688
+20150307MIA,2015-03-07,Miami Heat,Sacramento Kings,25.7814,-80.187
+20150307NYK,2015-03-07,New York Knicks,Indiana Pacers,40.7505,-73.9934
+20150307PHI,2015-03-07,Philadelphia 76ers,Atlanta Hawks,39.9012,-75.172
+20150307MIN,2015-03-07,Minnesota Timberwolves,Portland Trail Blazers,44.9795,-93.2761
+20150307MIL,2015-03-07,Milwaukee Bucks,Washington Wizards,43.0432,-87.9168
+20150307DEN,2015-03-07,Denver Nuggets,Houston Rockets,39.7486,-105.0076
+20150308SAS,2015-03-08,San Antonio Spurs,Chicago Bulls,29.427,-98.4375
+20150308GSW,2015-03-08,Golden State Warriors,Los Angeles Clippers,37.768,-122.3878
+20150308BRK,2015-03-08,Brooklyn Nets,Utah Jazz,40.6827,-73.9752
+20150308DET,2015-03-08,Detroit Pistons,Charlotte Hornets,42.6914,-83.2453
+20150308ORL,2015-03-08,Orlando Magic,Boston Celtics,28.5392,-81.3839
+20150308OKC,2015-03-08,Oklahoma City Thunder,Toronto Raptors,35.4635,-97.5151
+20150308LAL,2015-03-08,Los Angeles Lakers,Dallas Mavericks,34.043,-118.2673
+20150309CHO,2015-03-09,Charlotte Hornets,Washington Wizards,35.225,-80.8392
+20150309ATL,2015-03-09,Atlanta Hawks,Sacramento Kings,33.7573,-84.3963
+20150309MIA,2015-03-09,Miami Heat,Boston Celtics,25.7814,-80.187
+20150309CHI,2015-03-09,Chicago Bulls,Memphis Grizzlies,41.8806,-87.6742
+20150309MIL,2015-03-09,Milwaukee Bucks,New Orleans Pelicans,43.0432,-87.9168
+20150309DEN,2015-03-09,Denver Nuggets,New York Knicks,39.7486,-105.0076
+20150309PHO,2015-03-09,Phoenix Suns,Golden State Warriors,33.4457,-112.0712
+20150309LAC,2015-03-09,Los Angeles Clippers,Minnesota Timberwolves,34.043,-118.2673
+20150310IND,2015-03-10,Indiana Pacers,Orlando Magic,39.7639,-86.1555
+20150310BRK,2015-03-10,Brooklyn Nets,New Orleans Pelicans,40.6827,-73.9752
+20150310DAL,2015-03-10,Dallas Mavericks,Cleveland Cavaliers,32.7904,-96.8103
+20150310SAS,2015-03-10,San Antonio Spurs,Toronto Raptors,29.427,-98.4375
+20150310UTA,2015-03-10,Utah Jazz,New York Knicks,40.7683,-111.901
+20150310LAL,2015-03-10,Los Angeles Lakers,Detroit Pistons,34.043,-118.2673
+20150311CHO,2015-03-11,Charlotte Hornets,Sacramento Kings,35.225,-80.8392
+20150311PHI,2015-03-11,Philadelphia 76ers,Chicago Bulls,39.9012,-75.172
+20150311BOS,2015-03-11,Boston Celtics,Memphis Grizzlies,42.3663,-71.0622
+20150311MIA,2015-03-11,Miami Heat,Brooklyn Nets,25.7814,-80.187
+20150311MIL,2015-03-11,Milwaukee Bucks,Orlando Magic,43.0432,-87.9168
+20150311OKC,2015-03-11,Oklahoma City Thunder,Los Angeles Clippers,35.4635,-97.5151
+20150311DEN,2015-03-11,Denver Nuggets,Atlanta Hawks,39.7486,-105.0076
+20150311PHO,2015-03-11,Phoenix Suns,Minnesota Timberwolves,33.4457,-112.0712
+20150311GSW,2015-03-11,Golden State Warriors,Detroit Pistons,37.768,-122.3878
+20150311POR,2015-03-11,Portland Trail Blazers,Houston Rockets,45.5316,-122.6668
+20150312IND,2015-03-12,Indiana Pacers,Milwaukee Bucks,39.7639,-86.1555
+20150312WAS,2015-03-12,Washington Wizards,Memphis Grizzlies,38.8982,-77.0209
+20150312UTA,2015-03-12,Utah Jazz,Houston Rockets,40.7683,-111.901
+20150312SAS,2015-03-12,San Antonio Spurs,Cleveland Cavaliers,29.427,-98.4375
+20150312LAL,2015-03-12,Los Angeles Lakers,New York Knicks,34.043,-118.2673
+20150313CHO,2015-03-13,Charlotte Hornets,Chicago Bulls,35.225,-80.8392
+20150313PHI,2015-03-13,Philadelphia 76ers,Sacramento Kings,39.9012,-75.172
+20150313BOS,2015-03-13,Boston Celtics,Orlando Magic,42.3663,-71.0622
+20150313TOR,2015-03-13,Toronto Raptors,Miami Heat,43.6435,-79.379
+20150313OKC,2015-03-13,Oklahoma City Thunder,Minnesota Timberwolves,35.4635,-97.5151
+20150313DAL,2015-03-13,Dallas Mavericks,Los Angeles Clippers,32.7904,-96.8103
+20150313DEN,2015-03-13,Denver Nuggets,Golden State Warriors,39.7486,-105.0076
+20150313PHO,2015-03-13,Phoenix Suns,Atlanta Hawks,33.4457,-112.0712
+20150313POR,2015-03-13,Portland Trail Blazers,Detroit Pistons,45.5316,-122.6668
+20150314IND,2015-03-14,Indiana Pacers,Boston Celtics,39.7639,-86.1555
+20150314WAS,2015-03-14,Washington Wizards,Sacramento Kings,38.8982,-77.0209
+20150314PHI,2015-03-14,Philadelphia 76ers,Brooklyn Nets,39.9012,-75.172
+20150314MEM,2015-03-14,Memphis Grizzlies,Milwaukee Bucks,35.1381,-90.0506
+20150314UTA,2015-03-14,Utah Jazz,Detroit Pistons,40.7683,-111.901
+20150314GSW,2015-03-14,Golden State Warriors,New York Knicks,37.768,-122.3878
+20150315OKC,2015-03-15,Oklahoma City Thunder,Chicago Bulls,35.4635,-97.5151
+20150315LAC,2015-03-15,Los Angeles Clippers,Houston Rockets,34.043,-118.2673
+20150315NOP,2015-03-15,New Orleans Pelicans,Denver Nuggets,29.949,-90.0821
+20150315ORL,2015-03-15,Orlando Magic,Cleveland Cavaliers,28.5392,-81.3839
+20150315SAS,2015-03-15,San Antonio Spurs,Minnesota Timberwolves,29.427,-98.4375
+20150315TOR,2015-03-15,Toronto Raptors,Portland Trail Blazers,43.6435,-79.379
+20150315PHO,2015-03-15,Phoenix Suns,New York Knicks,33.4457,-112.0712
+20150315LAL,2015-03-15,Los Angeles Lakers,Atlanta Hawks,34.043,-118.2673
+20150316IND,2015-03-16,Indiana Pacers,Toronto Raptors,39.7639,-86.1555
+20150316WAS,2015-03-16,Washington Wizards,Portland Trail Blazers,38.8982,-77.0209
+20150316BOS,2015-03-16,Boston Celtics,Philadelphia 76ers,42.3663,-71.0622
+20150316MEM,2015-03-16,Memphis Grizzlies,Denver Nuggets,35.1381,-90.0506
+20150316MIA,2015-03-16,Miami Heat,Cleveland Cavaliers,25.7814,-80.187
+20150316MIN,2015-03-16,Minnesota Timberwolves,Brooklyn Nets,44.9795,-93.2761
+20150316DAL,2015-03-16,Dallas Mavericks,Oklahoma City Thunder,32.7904,-96.8103
+20150316UTA,2015-03-16,Utah Jazz,Charlotte Hornets,40.7683,-111.901
+20150316SAC,2015-03-16,Sacramento Kings,Atlanta Hawks,38.649,-121.518
+20150316GSW,2015-03-16,Golden State Warriors,Los Angeles Lakers,37.768,-122.3878
+20150317DET,2015-03-17,Detroit Pistons,Memphis Grizzlies,42.6914,-83.2453
+20150317NYK,2015-03-17,New York Knicks,San Antonio Spurs,40.7505,-73.9934
+20150317HOU,2015-03-17,Houston Rockets,Orlando Magic,29.7509,-95.3622
+20150317NOP,2015-03-17,New Orleans Pelicans,Milwaukee Bucks,29.949,-90.0821
+20150317LAC,2015-03-17,Los Angeles Clippers,Charlotte Hornets,34.043,-118.2673
+20150318CLE,2015-03-18,Cleveland Cavaliers,Brooklyn Nets,41.4965,-81.688
+20150318PHI,2015-03-18,Philadelphia 76ers,Detroit Pistons,39.9012,-75.172
+20150318MIA,2015-03-18,Miami Heat,Portland Trail Blazers,25.7814,-80.187
+20150318TOR,2015-03-18,Toronto Raptors,Minnesota Timberwolves,43.6435,-79.379
+20150318CHI,2015-03-18,Chicago Bulls,Indiana Pacers,41.8806,-87.6742
+20150318DAL,2015-03-18,Dallas Mavericks,Orlando Magic,32.7904,-96.8103
+20150318MIL,2015-03-18,Milwaukee Bucks,San Antonio Spurs,43.0432,-87.9168
+20150318OKC,2015-03-18,Oklahoma City Thunder,Boston Celtics,35.4635,-97.5151
+20150318SAC,2015-03-18,Sacramento Kings,Los Angeles Clippers,38.649,-121.518
+20150318GSW,2015-03-18,Golden State Warriors,Atlanta Hawks,37.768,-122.3878
+20150318UTA,2015-03-18,Utah Jazz,Washington Wizards,40.7683,-111.901
+20150319NYK,2015-03-19,New York Knicks,Minnesota Timberwolves,40.7505,-73.9934
+20150319HOU,2015-03-19,Houston Rockets,Denver Nuggets,29.7509,-95.3622
+20150319PHO,2015-03-19,Phoenix Suns,New Orleans Pelicans,33.4457,-112.0712
+20150319LAL,2015-03-19,Los Angeles Lakers,Utah Jazz,34.043,-118.2673
+20150320ORL,2015-03-20,Orlando Magic,Portland Trail Blazers,28.5392,-81.3839
+20150320PHI,2015-03-20,Philadelphia 76ers,New York Knicks,39.9012,-75.172
+20150320BRK,2015-03-20,Brooklyn Nets,Milwaukee Bucks,40.6827,-73.9752
+20150320CLE,2015-03-20,Cleveland Cavaliers,Indiana Pacers,41.4965,-81.688
+20150320MIA,2015-03-20,Miami Heat,Denver Nuggets,25.7814,-80.187
+20150320CHI,2015-03-20,Chicago Bulls,Toronto Raptors,41.8806,-87.6742
+20150320OKC,2015-03-20,Oklahoma City Thunder,Atlanta Hawks,35.4635,-97.5151
+20150320DAL,2015-03-20,Dallas Mavericks,Memphis Grizzlies,32.7904,-96.8103
+20150320SAS,2015-03-20,San Antonio Spurs,Boston Celtics,29.427,-98.4375
+20150320SAC,2015-03-20,Sacramento Kings,Charlotte Hornets,38.649,-121.518
+20150320GSW,2015-03-20,Golden State Warriors,New Orleans Pelicans,37.768,-122.3878
+20150320LAC,2015-03-20,Los Angeles Clippers,Washington Wizards,34.043,-118.2673
+20150321IND,2015-03-21,Indiana Pacers,Brooklyn Nets,39.7639,-86.1555
+20150321DET,2015-03-21,Detroit Pistons,Chicago Bulls,42.6914,-83.2453
+20150321HOU,2015-03-21,Houston Rockets,Phoenix Suns,29.7509,-95.3622
+20150321MEM,2015-03-21,Memphis Grizzlies,Portland Trail Blazers,35.1381,-90.0506
+20150321GSW,2015-03-21,Golden State Warriors,Utah Jazz,37.768,-122.3878
+20150322ATL,2015-03-22,Atlanta Hawks,San Antonio Spurs,33.7573,-84.3963
+20150322MIL,2015-03-22,Milwaukee Bucks,Cleveland Cavaliers,43.0432,-87.9168
+20150322OKC,2015-03-22,Oklahoma City Thunder,Miami Heat,35.4635,-97.5151
+20150322LAC,2015-03-22,Los Angeles Clippers,New Orleans Pelicans,34.043,-118.2673
+20150322TOR,2015-03-22,Toronto Raptors,New York Knicks,43.6435,-79.379
+20150322BOS,2015-03-22,Boston Celtics,Detroit Pistons,42.3663,-71.0622
+20150322ORL,2015-03-22,Orlando Magic,Denver Nuggets,28.5392,-81.3839
+20150322SAC,2015-03-22,Sacramento Kings,Washington Wizards,38.649,-121.518
+20150322MIN,2015-03-22,Minnesota Timberwolves,Charlotte Hornets,44.9795,-93.2761
+20150322PHO,2015-03-22,Phoenix Suns,Dallas Mavericks,33.4457,-112.0712
+20150322LAL,2015-03-22,Los Angeles Lakers,Philadelphia 76ers,34.043,-118.2673
+20150323IND,2015-03-23,Indiana Pacers,Houston Rockets,39.7639,-86.1555
+20150323BRK,2015-03-23,Brooklyn Nets,Boston Celtics,40.6827,-73.9752
+20150323NYK,2015-03-23,New York Knicks,Memphis Grizzlies,40.7505,-73.9934
+20150323CHI,2015-03-23,Chicago Bulls,Charlotte Hornets,41.8806,-87.6742
+20150323UTA,2015-03-23,Utah Jazz,Minnesota Timberwolves,40.7683,-111.901
+20150323GSW,2015-03-23,Golden State Warriors,Washington Wizards,37.768,-122.3878
+20150324DET,2015-03-24,Detroit Pistons,Toronto Raptors,42.6914,-83.2453
+20150324DAL,2015-03-24,Dallas Mavericks,San Antonio Spurs,32.7904,-96.8103
+20150324MIL,2015-03-24,Milwaukee Bucks,Miami Heat,43.0432,-87.9168
+20150324OKC,2015-03-24,Oklahoma City Thunder,Los Angeles Lakers,35.4635,-97.5151
+20150324SAC,2015-03-24,Sacramento Kings,Philadelphia 76ers,38.649,-121.518
+20150324POR,2015-03-24,Portland Trail Blazers,Golden State Warriors,45.5316,-122.6668
+20150325CHO,2015-03-25,Charlotte Hornets,Brooklyn Nets,35.225,-80.8392
+20150325NYK,2015-03-25,New York Knicks,Los Angeles Clippers,40.7505,-73.9934
+20150325ORL,2015-03-25,Orlando Magic,Atlanta Hawks,28.5392,-81.3839
+20150325TOR,2015-03-25,Toronto Raptors,Chicago Bulls,43.6435,-79.379
+20150325WAS,2015-03-25,Washington Wizards,Indiana Pacers,38.8982,-77.0209
+20150325BOS,2015-03-25,Boston Celtics,Miami Heat,42.3663,-71.0622
+20150325MEM,2015-03-25,Memphis Grizzlies,Cleveland Cavaliers,35.1381,-90.0506
+20150325MIN,2015-03-25,Minnesota Timberwolves,Los Angeles Lakers,44.9795,-93.2761
+20150325NOP,2015-03-25,New Orleans Pelicans,Houston Rockets,29.949,-90.0821
+20150325DEN,2015-03-25,Denver Nuggets,Philadelphia 76ers,39.7486,-105.0076
+20150325UTA,2015-03-25,Utah Jazz,Portland Trail Blazers,40.7683,-111.901
+20150325SAS,2015-03-25,San Antonio Spurs,Oklahoma City Thunder,29.427,-98.4375
+20150325PHO,2015-03-25,Phoenix Suns,Sacramento Kings,33.4457,-112.0712
+20150326MIL,2015-03-26,Milwaukee Bucks,Indiana Pacers,43.0432,-87.9168
+20150327ORL,2015-03-27,Orlando Magic,Detroit Pistons,28.5392,-81.3839
+20150327PHI,2015-03-27,Philadelphia 76ers,Los Angeles Clippers,39.9012,-75.172
+20150327WAS,2015-03-27,Washington Wizards,Charlotte Hornets,38.8982,-77.0209
+20150327ATL,2015-03-27,Atlanta Hawks,Miami Heat,33.7573,-84.3963
+20150327BRK,2015-03-27,Brooklyn Nets,Cleveland Cavaliers,40.6827,-73.9752
+20150327NYK,2015-03-27,New York Knicks,Boston Celtics,40.7505,-73.9934
+20150327TOR,2015-03-27,Toronto Raptors,Los Angeles Lakers,43.6435,-79.379
+20150327HOU,2015-03-27,Houston Rockets,Minnesota Timberwolves,29.7509,-95.3622
+20150327MEM,2015-03-27,Memphis Grizzlies,Golden State Warriors,35.1381,-90.0506
+20150327NOP,2015-03-27,New Orleans Pelicans,Sacramento Kings,29.949,-90.0821
+20150327SAS,2015-03-27,San Antonio Spurs,Dallas Mavericks,29.427,-98.4375
+20150327DEN,2015-03-27,Denver Nuggets,Utah Jazz,39.7486,-105.0076
+20150327PHO,2015-03-27,Phoenix Suns,Portland Trail Blazers,33.4457,-112.0712
+20150328CHO,2015-03-28,Charlotte Hornets,Atlanta Hawks,35.225,-80.8392
+20150328CHI,2015-03-28,Chicago Bulls,New York Knicks,41.8806,-87.6742
+20150328MIL,2015-03-28,Milwaukee Bucks,Golden State Warriors,43.0432,-87.9168
+20150328UTA,2015-03-28,Utah Jazz,Oklahoma City Thunder,40.7683,-111.901
+20150328POR,2015-03-28,Portland Trail Blazers,Denver Nuggets,45.5316,-122.6668
+20150329WAS,2015-03-29,Washington Wizards,Houston Rockets,38.8982,-77.0209
+20150329BRK,2015-03-29,Brooklyn Nets,Los Angeles Lakers,40.6827,-73.9752
+20150329NOP,2015-03-29,New Orleans Pelicans,Minnesota Timberwolves,29.949,-90.0821
+20150329CLE,2015-03-29,Cleveland Cavaliers,Philadelphia 76ers,41.4965,-81.688
+20150329BOS,2015-03-29,Boston Celtics,Los Angeles Clippers,42.3663,-71.0622
+20150329MIA,2015-03-29,Miami Heat,Detroit Pistons,25.7814,-80.187
+20150329IND,2015-03-29,Indiana Pacers,Dallas Mavericks,39.7639,-86.1555
+20150329SAS,2015-03-29,San Antonio Spurs,Memphis Grizzlies,29.427,-98.4375
+20150329PHO,2015-03-29,Phoenix Suns,Oklahoma City Thunder,33.4457,-112.0712
+20150330CHO,2015-03-30,Charlotte Hornets,Boston Celtics,35.225,-80.8392
+20150330PHI,2015-03-30,Philadelphia 76ers,Los Angeles Lakers,39.9012,-75.172
+20150330ATL,2015-03-30,Atlanta Hawks,Milwaukee Bucks,33.7573,-84.3963
+20150330TOR,2015-03-30,Toronto Raptors,Houston Rockets,43.6435,-79.379
+20150330MEM,2015-03-30,Memphis Grizzlies,Sacramento Kings,35.1381,-90.0506
+20150330MIN,2015-03-30,Minnesota Timberwolves,Utah Jazz,44.9795,-93.2761
+20150330POR,2015-03-30,Portland Trail Blazers,Phoenix Suns,45.5316,-122.6668
+20150331BRK,2015-03-31,Brooklyn Nets,Indiana Pacers,40.6827,-73.9752
+20150331DET,2015-03-31,Detroit Pistons,Atlanta Hawks,42.6914,-83.2453
+20150331MIA,2015-03-31,Miami Heat,San Antonio Spurs,25.7814,-80.187
+20150331LAC,2015-03-31,Los Angeles Clippers,Golden State Warriors,34.043,-118.2673
+20150401CHO,2015-04-01,Charlotte Hornets,Detroit Pistons,35.225,-80.8392
+20150401ORL,2015-04-01,Orlando Magic,San Antonio Spurs,28.5392,-81.3839
+20150401WAS,2015-04-01,Washington Wizards,Philadelphia 76ers,38.8982,-77.0209
+20150401BOS,2015-04-01,Boston Celtics,Indiana Pacers,42.3663,-71.0622
+20150401NYK,2015-04-01,New York Knicks,Brooklyn Nets,40.7505,-73.9934
+20150401HOU,2015-04-01,Houston Rockets,Sacramento Kings,29.7509,-95.3622
+20150401MIL,2015-04-01,Milwaukee Bucks,Chicago Bulls,43.0432,-87.9168
+20150401MIN,2015-04-01,Minnesota Timberwolves,Toronto Raptors,44.9795,-93.2761
+20150401OKC,2015-04-01,Oklahoma City Thunder,Dallas Mavericks,35.4635,-97.5151
+20150401UTA,2015-04-01,Utah Jazz,Denver Nuggets,40.7683,-111.901
+20150401POR,2015-04-01,Portland Trail Blazers,Los Angeles Clippers,45.5316,-122.6668
+20150401LAL,2015-04-01,Los Angeles Lakers,New Orleans Pelicans,34.043,-118.2673
+20150402CLE,2015-04-02,Cleveland Cavaliers,Miami Heat,41.4965,-81.688
+20150402DAL,2015-04-02,Dallas Mavericks,Houston Rockets,32.7904,-96.8103
+20150402GSW,2015-04-02,Golden State Warriors,Phoenix Suns,37.768,-122.3878
+20150403IND,2015-04-03,Indiana Pacers,Charlotte Hornets,39.7639,-86.1555
+20150403WAS,2015-04-03,Washington Wizards,New York Knicks,38.8982,-77.0209
+20150403BOS,2015-04-03,Boston Celtics,Milwaukee Bucks,42.3663,-71.0622
+20150403BRK,2015-04-03,Brooklyn Nets,Toronto Raptors,40.6827,-73.9752
+20150403CHI,2015-04-03,Chicago Bulls,Detroit Pistons,41.8806,-87.6742
+20150403MEM,2015-04-03,Memphis Grizzlies,Oklahoma City Thunder,35.1381,-90.0506
+20150403MIN,2015-04-03,Minnesota Timberwolves,Orlando Magic,44.9795,-93.2761
+20150403SAS,2015-04-03,San Antonio Spurs,Denver Nuggets,29.427,-98.4375
+20150403SAC,2015-04-03,Sacramento Kings,New Orleans Pelicans,38.649,-121.518
+20150403LAL,2015-04-03,Los Angeles Lakers,Portland Trail Blazers,34.043,-118.2673
+20150404CHO,2015-04-04,Charlotte Hornets,Philadelphia 76ers,35.225,-80.8392
+20150404ATL,2015-04-04,Atlanta Hawks,Brooklyn Nets,33.7573,-84.3963
+20150404DET,2015-04-04,Detroit Pistons,Miami Heat,42.6914,-83.2453
+20150404TOR,2015-04-04,Toronto Raptors,Boston Celtics,43.6435,-79.379
+20150404MEM,2015-04-04,Memphis Grizzlies,Washington Wizards,35.1381,-90.0506
+20150404DAL,2015-04-04,Dallas Mavericks,Golden State Warriors,32.7904,-96.8103
+20150404MIL,2015-04-04,Milwaukee Bucks,Orlando Magic,43.0432,-87.9168
+20150404DEN,2015-04-04,Denver Nuggets,Los Angeles Clippers,39.7486,-105.0076
+20150404PHO,2015-04-04,Phoenix Suns,Utah Jazz,33.4457,-112.0712
+20150404POR,2015-04-04,Portland Trail Blazers,New Orleans Pelicans,45.5316,-122.6668
+20150405OKC,2015-04-05,Oklahoma City Thunder,Houston Rockets,35.4635,-97.5151
+20150405CLE,2015-04-05,Cleveland Cavaliers,Chicago Bulls,41.4965,-81.688
+20150405IND,2015-04-05,Indiana Pacers,Miami Heat,39.7639,-86.1555
+20150405SAS,2015-04-05,San Antonio Spurs,Golden State Warriors,29.427,-98.4375
+20150405NYK,2015-04-05,New York Knicks,Philadelphia 76ers,40.7505,-73.9934
+20150405SAC,2015-04-05,Sacramento Kings,Utah Jazz,38.649,-121.518
+20150405LAL,2015-04-05,Los Angeles Lakers,Los Angeles Clippers,34.043,-118.2673
+20150406BRK,2015-04-06,Brooklyn Nets,Portland Trail Blazers,40.6827,-73.9752
+20150407ATL,2015-04-07,Atlanta Hawks,Phoenix Suns,33.7573,-84.3963
+20150407MIA,2015-04-07,Miami Heat,Charlotte Hornets,25.7814,-80.187
+20150407NOP,2015-04-07,New Orleans Pelicans,Golden State Warriors,29.949,-90.0821
+20150407OKC,2015-04-07,Oklahoma City Thunder,San Antonio Spurs,35.4635,-97.5151
+20150407SAC,2015-04-07,Sacramento Kings,Minnesota Timberwolves,38.649,-121.518
+20150407LAC,2015-04-07,Los Angeles Clippers,Los Angeles Lakers,34.043,-118.2673
+20150408CHO,2015-04-08,Charlotte Hornets,Toronto Raptors,35.225,-80.8392
+20150408DET,2015-04-08,Detroit Pistons,Boston Celtics,42.6914,-83.2453
+20150408ORL,2015-04-08,Orlando Magic,Chicago Bulls,28.5392,-81.3839
+20150408PHI,2015-04-08,Philadelphia 76ers,Washington Wizards,39.9012,-75.172
+20150408BRK,2015-04-08,Brooklyn Nets,Atlanta Hawks,40.6827,-73.9752
+20150408NYK,2015-04-08,New York Knicks,Indiana Pacers,40.7505,-73.9934
+20150408MEM,2015-04-08,Memphis Grizzlies,New Orleans Pelicans,35.1381,-90.0506
+20150408MIL,2015-04-08,Milwaukee Bucks,Cleveland Cavaliers,43.0432,-87.9168
+20150408SAS,2015-04-08,San Antonio Spurs,Houston Rockets,29.427,-98.4375
+20150408DEN,2015-04-08,Denver Nuggets,Los Angeles Lakers,39.7486,-105.0076
+20150408UTA,2015-04-08,Utah Jazz,Sacramento Kings,40.7683,-111.901
+20150408DAL,2015-04-08,Dallas Mavericks,Phoenix Suns,32.7904,-96.8103
+20150408POR,2015-04-08,Portland Trail Blazers,Minnesota Timberwolves,45.5316,-122.6668
+20150409MIA,2015-04-09,Miami Heat,Chicago Bulls,25.7814,-80.187
+20150409GSW,2015-04-09,Golden State Warriors,Portland Trail Blazers,37.768,-122.3878
+20150410ORL,2015-04-10,Orlando Magic,Toronto Raptors,28.5392,-81.3839
+20150410ATL,2015-04-10,Atlanta Hawks,Charlotte Hornets,33.7573,-84.3963
+20150410BRK,2015-04-10,Brooklyn Nets,Washington Wizards,40.6827,-73.9752
+20150410CLE,2015-04-10,Cleveland Cavaliers,Boston Celtics,41.4965,-81.688
+20150410DET,2015-04-10,Detroit Pistons,Indiana Pacers,42.6914,-83.2453
+20150410NYK,2015-04-10,New York Knicks,Milwaukee Bucks,40.7505,-73.9934
+20150410HOU,2015-04-10,Houston Rockets,San Antonio Spurs,29.7509,-95.3622
+20150410NOP,2015-04-10,New Orleans Pelicans,Phoenix Suns,29.949,-90.0821
+20150410OKC,2015-04-10,Oklahoma City Thunder,Sacramento Kings,35.4635,-97.5151
+20150410DEN,2015-04-10,Denver Nuggets,Dallas Mavericks,39.7486,-105.0076
+20150410UTA,2015-04-10,Utah Jazz,Memphis Grizzlies,40.7683,-111.901
+20150410LAL,2015-04-10,Los Angeles Lakers,Minnesota Timberwolves,34.043,-118.2673
+20150411ORL,2015-04-11,Orlando Magic,New York Knicks,28.5392,-81.3839
+20150411MIA,2015-04-11,Miami Heat,Toronto Raptors,25.7814,-80.187
+20150411CHI,2015-04-11,Chicago Bulls,Philadelphia 76ers,41.8806,-87.6742
+20150411LAC,2015-04-11,Los Angeles Clippers,Memphis Grizzlies,34.043,-118.2673
+20150411POR,2015-04-11,Portland Trail Blazers,Utah Jazz,45.5316,-122.6668
+20150411GSW,2015-04-11,Golden State Warriors,Minnesota Timberwolves,37.768,-122.3878
+20150412BOS,2015-04-12,Boston Celtics,Cleveland Cavaliers,42.3663,-71.0622
+20150412MIL,2015-04-12,Milwaukee Bucks,Brooklyn Nets,43.0432,-87.9168
+20150412DET,2015-04-12,Detroit Pistons,Charlotte Hornets,42.6914,-83.2453
+20150412DEN,2015-04-12,Denver Nuggets,Sacramento Kings,39.7486,-105.0076
+20150412IND,2015-04-12,Indiana Pacers,Oklahoma City Thunder,39.7639,-86.1555
+20150412WAS,2015-04-12,Washington Wizards,Atlanta Hawks,38.8982,-77.0209
+20150412HOU,2015-04-12,Houston Rockets,New Orleans Pelicans,29.7509,-95.3622
+20150412SAS,2015-04-12,San Antonio Spurs,Phoenix Suns,29.427,-98.4375
+20150412LAL,2015-04-12,Los Angeles Lakers,Dallas Mavericks,34.043,-118.2673
+20150413CHO,2015-04-13,Charlotte Hornets,Houston Rockets,35.225,-80.8392
+20150413CLE,2015-04-13,Cleveland Cavaliers,Detroit Pistons,41.4965,-81.688
+20150413PHI,2015-04-13,Philadelphia 76ers,Milwaukee Bucks,39.9012,-75.172
+20150413ATL,2015-04-13,Atlanta Hawks,New York Knicks,33.7573,-84.3963
+20150413BRK,2015-04-13,Brooklyn Nets,Chicago Bulls,40.6827,-73.9752
+20150413MIA,2015-04-13,Miami Heat,Orlando Magic,25.7814,-80.187
+20150413MIN,2015-04-13,Minnesota Timberwolves,New Orleans Pelicans,44.9795,-93.2761
+20150413OKC,2015-04-13,Oklahoma City Thunder,Portland Trail Blazers,35.4635,-97.5151
+20150413UTA,2015-04-13,Utah Jazz,Dallas Mavericks,40.7683,-111.901
+20150413SAC,2015-04-13,Sacramento Kings,Los Angeles Lakers,38.649,-121.518
+20150413GSW,2015-04-13,Golden State Warriors,Memphis Grizzlies,37.768,-122.3878
+20150413LAC,2015-04-13,Los Angeles Clippers,Denver Nuggets,34.043,-118.2673
+20150414BOS,2015-04-14,Boston Celtics,Toronto Raptors,42.3663,-71.0622
+20150414IND,2015-04-14,Indiana Pacers,Washington Wizards,39.7639,-86.1555
+20150414PHO,2015-04-14,Phoenix Suns,Los Angeles Clippers,33.4457,-112.0712
+20150415TOR,2015-04-15,Toronto Raptors,Charlotte Hornets,43.6435,-79.379
+20150415BRK,2015-04-15,Brooklyn Nets,Orlando Magic,40.6827,-73.9752
+20150415CHI,2015-04-15,Chicago Bulls,Atlanta Hawks,41.8806,-87.6742
+20150415CLE,2015-04-15,Cleveland Cavaliers,Washington Wizards,41.4965,-81.688
+20150415DAL,2015-04-15,Dallas Mavericks,Portland Trail Blazers,32.7904,-96.8103
+20150415HOU,2015-04-15,Houston Rockets,Utah Jazz,29.7509,-95.3622
+20150415MIL,2015-04-15,Milwaukee Bucks,Boston Celtics,43.0432,-87.9168
+20150415MIN,2015-04-15,Minnesota Timberwolves,Oklahoma City Thunder,44.9795,-93.2761
+20150415NOP,2015-04-15,New Orleans Pelicans,San Antonio Spurs,29.949,-90.0821
+20150415NYK,2015-04-15,New York Knicks,Detroit Pistons,40.7505,-73.9934
+20150415PHI,2015-04-15,Philadelphia 76ers,Miami Heat,39.9012,-75.172
+20150415MEM,2015-04-15,Memphis Grizzlies,Indiana Pacers,35.1381,-90.0506
+20150415GSW,2015-04-15,Golden State Warriors,Denver Nuggets,37.768,-122.3878
+20150415LAL,2015-04-15,Los Angeles Lakers,Sacramento Kings,34.043,-118.2673
+20150418TOR,2015-04-18,Toronto Raptors,Washington Wizards,43.6435,-79.379
+20150418GSW,2015-04-18,Golden State Warriors,New Orleans Pelicans,37.768,-122.3878
+20150418CHI,2015-04-18,Chicago Bulls,Milwaukee Bucks,41.8806,-87.6742
+20150418HOU,2015-04-18,Houston Rockets,Dallas Mavericks,29.7509,-95.3622
+20150419CLE,2015-04-19,Cleveland Cavaliers,Boston Celtics,41.4965,-81.688
+20150419ATL,2015-04-19,Atlanta Hawks,Brooklyn Nets,33.7573,-84.3963
+20150419MEM,2015-04-19,Memphis Grizzlies,Portland Trail Blazers,35.1381,-90.0506
+20150419LAC,2015-04-19,Los Angeles Clippers,San Antonio Spurs,34.043,-118.2673
+20150420CHI,2015-04-20,Chicago Bulls,Milwaukee Bucks,41.8806,-87.6742
+20150420GSW,2015-04-20,Golden State Warriors,New Orleans Pelicans,37.768,-122.3878
+20150421CLE,2015-04-21,Cleveland Cavaliers,Boston Celtics,41.4965,-81.688
+20150421TOR,2015-04-21,Toronto Raptors,Washington Wizards,43.6435,-79.379
+20150421HOU,2015-04-21,Houston Rockets,Dallas Mavericks,29.7509,-95.3622
+20150422ATL,2015-04-22,Atlanta Hawks,Brooklyn Nets,33.7573,-84.3963
+20150422MEM,2015-04-22,Memphis Grizzlies,Portland Trail Blazers,35.1381,-90.0506
+20150422LAC,2015-04-22,Los Angeles Clippers,San Antonio Spurs,34.043,-118.2673
+20150423BOS,2015-04-23,Boston Celtics,Cleveland Cavaliers,42.3663,-71.0622
+20150423MIL,2015-04-23,Milwaukee Bucks,Chicago Bulls,43.0432,-87.9168
+20150423NOP,2015-04-23,New Orleans Pelicans,Golden State Warriors,29.949,-90.0821
+20150424DAL,2015-04-24,Dallas Mavericks,Houston Rockets,32.7904,-96.8103
+20150424WAS,2015-04-24,Washington Wizards,Toronto Raptors,38.8982,-77.0209
+20150424SAS,2015-04-24,San Antonio Spurs,Los Angeles Clippers,29.427,-98.4375
+20150425BRK,2015-04-25,Brooklyn Nets,Atlanta Hawks,40.6827,-73.9752
+20150425MIL,2015-04-25,Milwaukee Bucks,Chicago Bulls,43.0432,-87.9168
+20150425NOP,2015-04-25,New Orleans Pelicans,Golden State Warriors,29.949,-90.0821
+20150425POR,2015-04-25,Portland Trail Blazers,Memphis Grizzlies,45.5316,-122.6668
+20150426BOS,2015-04-26,Boston Celtics,Cleveland Cavaliers,42.3663,-71.0622
+20150426SAS,2015-04-26,San Antonio Spurs,Los Angeles Clippers,29.427,-98.4375
+20150426WAS,2015-04-26,Washington Wizards,Toronto Raptors,38.8982,-77.0209
+20150426DAL,2015-04-26,Dallas Mavericks,Houston Rockets,32.7904,-96.8103
+20150427BRK,2015-04-27,Brooklyn Nets,Atlanta Hawks,40.6827,-73.9752
+20150427CHI,2015-04-27,Chicago Bulls,Milwaukee Bucks,41.8806,-87.6742
+20150427POR,2015-04-27,Portland Trail Blazers,Memphis Grizzlies,45.5316,-122.6668
+20150428HOU,2015-04-28,Houston Rockets,Dallas Mavericks,29.7509,-95.3622
+20150428LAC,2015-04-28,Los Angeles Clippers,San Antonio Spurs,34.043,-118.2673
+20150429ATL,2015-04-29,Atlanta Hawks,Brooklyn Nets,33.7573,-84.3963
+20150429MEM,2015-04-29,Memphis Grizzlies,Portland Trail Blazers,35.1381,-90.0506
+20150430MIL,2015-04-30,Milwaukee Bucks,Chicago Bulls,43.0432,-87.9168
+20150430SAS,2015-04-30,San Antonio Spurs,Los Angeles Clippers,29.427,-98.4375
+20150501BRK,2015-05-01,Brooklyn Nets,Atlanta Hawks,40.6827,-73.9752
+20150502LAC,2015-05-02,Los Angeles Clippers,San Antonio Spurs,34.043,-118.2673
+20150503ATL,2015-05-03,Atlanta Hawks,Washington Wizards,33.7573,-84.3963
+20150503GSW,2015-05-03,Golden State Warriors,Memphis Grizzlies,37.768,-122.3878
+20150504CLE,2015-05-04,Cleveland Cavaliers,Chicago Bulls,41.4965,-81.688
+20150504HOU,2015-05-04,Houston Rockets,Los Angeles Clippers,29.7509,-95.3622
+20150505ATL,2015-05-05,Atlanta Hawks,Washington Wizards,33.7573,-84.3963
+20150505GSW,2015-05-05,Golden State Warriors,Memphis Grizzlies,37.768,-122.3878
+20150506CLE,2015-05-06,Cleveland Cavaliers,Chicago Bulls,41.4965,-81.688
+20150506HOU,2015-05-06,Houston Rockets,Los Angeles Clippers,29.7509,-95.3622
+20150508CHI,2015-05-08,Chicago Bulls,Cleveland Cavaliers,41.8806,-87.6742
+20150508LAC,2015-05-08,Los Angeles Clippers,Houston Rockets,34.043,-118.2673
+20150509WAS,2015-05-09,Washington Wizards,Atlanta Hawks,38.8982,-77.0209
+20150509MEM,2015-05-09,Memphis Grizzlies,Golden State Warriors,35.1381,-90.0506
+20150510CHI,2015-05-10,Chicago Bulls,Cleveland Cavaliers,41.8806,-87.6742
+20150510LAC,2015-05-10,Los Angeles Clippers,Houston Rockets,34.043,-118.2673
+20150511WAS,2015-05-11,Washington Wizards,Atlanta Hawks,38.8982,-77.0209
+20150511MEM,2015-05-11,Memphis Grizzlies,Golden State Warriors,35.1381,-90.0506
+20150512CLE,2015-05-12,Cleveland Cavaliers,Chicago Bulls,41.4965,-81.688
+20150512HOU,2015-05-12,Houston Rockets,Los Angeles Clippers,29.7509,-95.3622
+20150513ATL,2015-05-13,Atlanta Hawks,Washington Wizards,33.7573,-84.3963
+20150513GSW,2015-05-13,Golden State Warriors,Memphis Grizzlies,37.768,-122.3878
+20150514CHI,2015-05-14,Chicago Bulls,Cleveland Cavaliers,41.8806,-87.6742
+20150514LAC,2015-05-14,Los Angeles Clippers,Houston Rockets,34.043,-118.2673
+20150515WAS,2015-05-15,Washington Wizards,Atlanta Hawks,38.8982,-77.0209
+20150515MEM,2015-05-15,Memphis Grizzlies,Golden State Warriors,35.1381,-90.0506
+20150517HOU,2015-05-17,Houston Rockets,Los Angeles Clippers,29.7509,-95.3622
+20150519GSW,2015-05-19,Golden State Warriors,Houston Rockets,37.768,-122.3878
+20150520ATL,2015-05-20,Atlanta Hawks,Cleveland Cavaliers,33.7573,-84.3963
+20150521GSW,2015-05-21,Golden State Warriors,Houston Rockets,37.768,-122.3878
+20150522ATL,2015-05-22,Atlanta Hawks,Cleveland Cavaliers,33.7573,-84.3963
+20150523HOU,2015-05-23,Houston Rockets,Golden State Warriors,29.7509,-95.3622
+20150524CLE,2015-05-24,Cleveland Cavaliers,Atlanta Hawks,41.4965,-81.688
+20150525HOU,2015-05-25,Houston Rockets,Golden State Warriors,29.7509,-95.3622
+20150526CLE,2015-05-26,Cleveland Cavaliers,Atlanta Hawks,41.4965,-81.688
+20150527GSW,2015-05-27,Golden State Warriors,Houston Rockets,37.768,-122.3878
+20150604GSW,2015-06-04,Golden State Warriors,Cleveland Cavaliers,37.768,-122.3878
+20150607GSW,2015-06-07,Golden State Warriors,Cleveland Cavaliers,37.768,-122.3878
+20150609CLE,2015-06-09,Cleveland Cavaliers,Golden State Warriors,41.4965,-81.688
+20150611CLE,2015-06-11,Cleveland Cavaliers,Golden State Warriors,41.4965,-81.688
+20150614GSW,2015-06-14,Golden State Warriors,Cleveland Cavaliers,37.768,-122.3878
+20150616CLE,2015-06-16,Cleveland Cavaliers,Golden State Warriors,41.4965,-81.688

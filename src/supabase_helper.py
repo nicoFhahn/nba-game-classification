@@ -2,26 +2,54 @@ import polars as pl
 from datetime import datetime
 from dateutil.relativedelta import relativedelta    
 
-def fetch_entire_table(supabase, table_name, page_size=1000):
-    all_rows = []
+
+def fetch_distinct_column(supabase, table_name, column_name, page_size=1000):
+    all_values = set()
     start = 0
     while True:
         response = (
             supabase
             .table(table_name)
-            .select("*")
+            .select(column_name)
+            .order("id")
             .range(start, start + page_size - 1)
             .execute()
         )
-
         batch = response.data
-
         if not batch:
             break
+        # Extract the column values and add to set (automatically deduplicates)
+        all_values.update(row[column_name] for row in batch if row.get(column_name) is not None)
+        start += page_size
+    return list(all_values)
 
+
+def fetch_entire_table(supabase, table_name, page_size=1000, sort=False):
+    all_rows = []
+    start = 0
+    while True:
+        if not sort:
+            response = (
+                supabase
+                .table(table_name)
+                .select("*")
+                .range(start, start + page_size - 1)
+                .execute()
+            )
+        else:
+            response = (
+                supabase
+                .table(table_name)
+                .select("*")
+                .order("id")  # Order by primary key or another unique column
+                .range(start, start + page_size - 1)
+                .execute()
+            )
+        batch = response.data
+        if not batch:
+            break
         all_rows.extend(batch)
         start += page_size
-
     return pl.DataFrame(all_rows)
 
 def fetch_month_data(supabase, table_name, date_obj, date_column='date', page_size=1000):
