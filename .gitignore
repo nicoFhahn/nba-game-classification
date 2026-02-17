@@ -7,3 +7,5 @@ src/__marimo__/
 **/__pycache__/
 *.pyc
 .DS_Store
+*.csv
+*.xlsx
