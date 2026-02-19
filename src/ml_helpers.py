@@ -16,11 +16,23 @@ import ml_pipeline
 import importlib
 importlib.reload(ml_pipeline)
 
-def load_data(supabase) -> (pl.DataFrame, pl.DataFrame, pl.DataFrame, pl.DataFrame):
+def load_data(
+        supabase,
+        season_ids = None
+) -> (pl.DataFrame, pl.DataFrame, pl.DataFrame, pl.DataFrame):
     schedule = fetch_entire_table(supabase, "schedule")
     games = fetch_entire_table(supabase, "boxscore")
+    if season_ids is None:
+        season_ids = sorted(schedule["season_id"].unique().to_list())
+    else:
+        schedule = schedule.filter(
+            pl.col("season_id").is_in(season_ids)
+        )
+        games = games.filter(
+            pl.col("game_id").is_in(schedule["game_id"].to_list())
+        )
     player_boxscore_list = []
-    for i in tqdm(set(schedule["season_id"])):
+    for i in tqdm(season_ids):
         s, pb = fetch_filtered_table(
             supabase, "schedule", "player-boxscore", "season_id", "game_id", i
         )
@@ -99,9 +111,10 @@ def preprocess_data(
         ).filter(
             pl.col("season_id") == s
         )
-        season_boxscores = season_boxscore.partition_by("team_id")
+        season_boxscores = season_boxscore.partition_by("player_id")
         season_player_stats = [features.player_season_stats(boxscore) for boxscore in season_boxscores]
-        season_expected_stats = [features.calculate_expected_team_stats(sps) for sps in season_player_stats]
+        season_team_player_stats = pl.concat(season_player_stats).partition_by("team_id")
+        season_expected_stats = [features.calculate_expected_team_stats(sps) for sps in season_team_player_stats]
         joined = joined.join(
             pl.concat(season_expected_stats).drop("num_players").rename(
                 lambda c: f"{c}_home_team"
