@@ -13,3 +13,5 @@ selenium
 marimo
 google-cloud-secret-manager
 webdriver-manager
+pyarrow
+shap
