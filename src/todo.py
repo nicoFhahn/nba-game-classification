@@ -24,23 +24,13 @@ def _():
     from shap_analysis import calculate_shap_ensemble, plot_shap_summary
     return (
         create_client,
-        features,
-        fetch_entire_table,
+        fetch_filtered_table,
         json,
         load_pipeline,
         pl,
         secretmanager,
         tqdm,
     )
-
-
-@app.cell
-def _(pl):
-    to_insert = pl.read_csv("../arenas_geocoded.csv", separator=";").with_columns([
-        pl.col("latitude").str.replace(",", ".").cast(pl.Float64),
-        pl.col("longitude").str.replace(",", ".").cast(pl.Float64)
-    ]).to_dicts()
-    return (to_insert,)
 
 
 @app.cell
@@ -57,119 +47,49 @@ def _(create_client, json, secretmanager):
 
 
 @app.cell
-def _(supabase, to_insert):
-    supabase.table("location").insert(to_insert).execute()
+def _(fetch_filtered_table, supabase):
+    schedule, boxscore = fetch_filtered_table(supabase, "schedule", "boxscore", "season_id", "game_id")
     return
 
 
 @app.cell
-def _(fetch_entire_table, supabase):
-
-    schedule = fetch_entire_table(supabase, "schedule")
-    games = fetch_entire_table(supabase, "boxscore")
-    elo = fetch_entire_table(supabase, "elo")
-    schedule = schedule.join(
-        games,
-        on="game_id"
-    )
-    return elo, games, schedule
+def _(fetch_filtered_table, supabase, tqdm):
+    pb_list = []
+    for i in tqdm(range(2015, 2027)):
+        s, pb = fetch_filtered_table(supabase, "schedule", "player-boxscore", "season_id", "game_id", i)
+        pb_list.append(pb)
+    return (pb_list,)
 
 
 @app.cell
-def _(features, games, pl, schedule, tqdm):
-    final_data = []
-    for s in tqdm(set(schedule["season_id"])):
-        season_schedule = schedule.filter(
-            pl.col("season_id") == s
-        ).sort("date").select([
-            "game_id", "date", "home_team", "guest_team", "pts_home", "pts_guest"
-        ]).with_columns([
-            (pl.col("pts_home") > pl.col("pts_guest")).alias("is_home_win")
-        ])
-        season_games = season_schedule.select(
-            "game_id", "date", "home_team", "guest_team"
-        ).join(
-            games,
-            on="game_id"
-        ).with_columns(
-            pl.col("date").str.to_date()
-        )
-        teams = set(season_games["home_team"])
-        boxscore_dfs = [features.team_boxscores(season_games, team) for team in teams]
-        team_stats = [features.team_season_stats(boxscore_df) for boxscore_df in boxscore_dfs]
-        season_schedule = features.add_overall_winning_pct(season_schedule)
-        season_schedule = features.add_location_winning_pct(season_schedule)
-        season_schedule = features.h2h(season_schedule)
-        team_stats = pl.concat(team_stats)
-        joined = season_schedule.drop([
-            "date", "pts_home", "pts_guest",
-            "home_win", "guest_win"
-        ]).join(
-            team_stats.drop(["date", "is_win"]).rename(
-                lambda c: f"{c}_home"
-            ),
-            left_on=["game_id", "home_team"],
-            right_on=["game_id_home", "team_home"]
-        ).join(
-            team_stats.drop(["date", "is_win"]).rename(
-                lambda c: f"{c}_guest"
-            ),
-            left_on=["game_id", "guest_team"],
-            right_on=["game_id_guest", "team_guest"]
-        )
-        final_data.append(joined)
-    return (final_data,)
+def _(pb_list, pl):
+    pl.concat(pb_list).unique("id")
+    return
 
 
 @app.cell
-def _(elo, final_data, pl, schedule):
-    df = pl.concat(final_data).join(
-        elo.select("game_id", "team_id", "elo_before").rename({
-            "elo_before": "elo_home"
-        }),
-        left_on=["game_id", "home_team"],
-        right_on=["game_id", "team_id"]
-    ).join(
-        elo.select("game_id", "team_id", "elo_before").rename({
-            "elo_before": "elo_guest"
-        }),
-        left_on=["game_id", "guest_team"],
-        right_on=["game_id", "team_id"]
-    )
-    df = schedule.select(
-        "game_id", "date"
-    ).join(
-        df,
-        on="game_id"
-    ).with_columns(
-        pl.col("date").str.to_date()
-    ).sort("date")
-    return (df,)
+def _():
+    # todo - precalculate old player box scores -> supabase
+    # todo - fetch filtered table to get data for current season
+    return
 
 
 @app.cell
-def _(df, json, pl, schedule):
-    train_ids = schedule.filter(pl.col("season_id") <= 2024)["game_id"].to_list()
-    test_ids = schedule.filter(pl.col("season_id") == 2025)["game_id"].to_list()
-    val_ids = schedule.filter(pl.col("season_id") == 2026)["game_id"].to_list()
-    train = df.filter(
-        pl.col("game_id").is_in(train_ids)
-    )
-    test = df.filter(
-        pl.col("game_id").is_in(test_ids)
-    )
-    val = df.filter(
-        pl.col("game_id").is_in(val_ids)
-    )
-    with open("bf.json", "r") as f:
-        bf = json.load(f)
-    X_train = train.select(bf["features"])
-    X_test = test.select(bf["features"])
-    X_val = val.select(bf["features"])
-    y_train = train.select("is_home_win")
-    y_test = test.select("is_home_win")
-    y_val = val.select("is_home_win")
-    return (X_train,)
+def _(pb_list):
+    pb_list[-1]
+    return
+
+
+@app.cell
+def _(player_boxscore):
+    player_boxscore
+    return
+
+
+@app.cell
+def _():
+    # todo, build predictions for future games w. current roster
+    return
 
 
 @app.cell(disabled=True)

@@ -46,20 +46,31 @@ warnings.filterwarnings('ignore')
 class ModelTuner:
     """Unified class for tuning all models with Optuna"""
 
-    def __init__(self, X_train, y_train, cv_folds=5, random_state=42, max_estimators=1000, sample_weights=None):
+    def __init__(self, X_train, y_train, cv_folds=5, random_state=42, max_estimators=1000,
+                 sample_weights=None, early_stopping=True, early_stopping_rounds=50):
         self.X_train = X_train
         self.y_train = y_train
         self.cv = StratifiedKFold(n_splits=cv_folds, shuffle=True, random_state=random_state)
+        self.cv_folds = cv_folds
         self.random_state = random_state
         self.max_estimators = max_estimators
         self.sample_weights = sample_weights
+        self.early_stopping = early_stopping
+        self.early_stopping_rounds = early_stopping_rounds
         self.best_models = {}
         self.best_params = {}
         self.studies = {}
 
-    def _cross_val_score_weighted(self, model):
+    def _cross_val_score_weighted(self, model, model_name=None):
         """
-        Perform cross-validation with optional sample weights
+        Perform cross-validation with optional sample weights and early stopping
+
+        Parameters:
+        -----------
+        model : sklearn-compatible model
+            Model to evaluate
+        model_name : str, optional
+            Name of model (used to determine if early stopping is supported)
 
         Returns:
         --------
@@ -67,18 +78,58 @@ class ModelTuner:
         """
         scores = []
 
+        # Check if model supports early stopping
+        supports_early_stopping = (
+            self.early_stopping and
+            model_name in ['XGBoost', 'LightGBM', 'CatBoost']
+        )
+
         for train_idx, val_idx in self.cv.split(self.X_train, self.y_train):
             X_fold_train = self.X_train[train_idx]
             y_fold_train = self.y_train[train_idx]
             X_fold_val = self.X_train[val_idx]
             y_fold_val = self.y_train[val_idx]
 
-            # Train with weights if provided
-            if self.sample_weights is not None:
-                fold_weights = self.sample_weights[train_idx]
-                model.fit(X_fold_train, y_fold_train, sample_weight=fold_weights)
+            # Get fold weights if using sample weights
+            fold_weights = self.sample_weights[train_idx] if self.sample_weights is not None else None
+
+            # Train with early stopping if supported
+            if supports_early_stopping:
+                try:
+                    if model_name == 'XGBoost':
+                        model.fit(
+                            X_fold_train, y_fold_train,
+                            sample_weight=fold_weights,
+                            eval_set=[(X_fold_val, y_fold_val)],
+                            verbose=False
+                        )
+                    elif model_name == 'LightGBM':
+                        model.fit(
+                            X_fold_train, y_fold_train,
+                            sample_weight=fold_weights,
+                            eval_set=[(X_fold_val, y_fold_val)],
+                            callbacks=[lgb.early_stopping(self.early_stopping_rounds, verbose=False)]
+                        )
+                    elif model_name == 'CatBoost':
+                        model.fit(
+                            X_fold_train, y_fold_train,
+                            sample_weight=fold_weights,
+                            eval_set=(X_fold_val, y_fold_val),
+                            early_stopping_rounds=self.early_stopping_rounds,
+                            verbose=False
+                        )
+                except Exception as e:
+                    # Fallback to regular fit if early stopping fails
+                    if fold_weights is not None:
+                        model.fit(X_fold_train, y_fold_train, sample_weight=fold_weights)
+                    else:
+                        model.fit(X_fold_train, y_fold_train)
             else:
-                model.fit(X_fold_train, y_fold_train)
+                # Regular fit for models without early stopping
+                if fold_weights is not None:
+                    model.fit(X_fold_train, y_fold_train, sample_weight=fold_weights)
+                else:
+                    model.fit(X_fold_train, y_fold_train)
 
             # Evaluate
             y_pred_proba = model.predict_proba(X_fold_val)[:, 1]
@@ -188,7 +239,7 @@ class ModelTuner:
         }
 
         model = ExtraTreesClassifier(**params)
-        return self._cross_val_score_weighted(model)
+        return self._cross_val_score_weighted(model, "ExtraTrees")
 
     def objective_randomforest(self, trial):
         """Optuna objective for RandomForest"""
@@ -224,7 +275,7 @@ class ModelTuner:
         }
 
         model = xgb.XGBClassifier(**params)
-        return self._cross_val_score_weighted(model)
+        return self._cross_val_score_weighted(model, "XGBoost")
 
     def objective_lightgbm(self, trial):
         """Optuna objective for LightGBM"""
@@ -243,7 +294,7 @@ class ModelTuner:
         }
 
         model = lgb.LGBMClassifier(**params)
-        return self._cross_val_score_weighted(model)
+        return self._cross_val_score_weighted(model, "LightGBM")
 
     def objective_catboost(self, trial):
         """Optuna objective for CatBoost"""
@@ -260,7 +311,7 @@ class ModelTuner:
         }
 
         model = cb.CatBoostClassifier(**params)
-        return self._cross_val_score_weighted(model)
+        return self._cross_val_score_weighted(model, "CatBoost")
 
     def objective_histgradient(self, trial):
         """Optuna objective for HistGradientBoosting"""
@@ -716,7 +767,8 @@ def evaluate_models(models_dict, X_test, y_test, threshold=0.5):
 def main_pipeline(X_train, y_train, X_test, y_test, n_trials=100, max_estimators=1000,
                   threshold_metric='f1', n_jobs_optuna=1, random_state=42, optuna_verbosity=1,
                   output_dir=None, load_checkpoint=False, save_frequency='model',
-                  use_weights=False, weight_decay=0.99, date_column=None):
+                  use_weights=False, weight_decay=0.99, date_column=None,
+                  cv_folds=5, early_stopping=True, early_stopping_rounds=50):
     """
     Complete ML pipeline
 
@@ -739,6 +791,12 @@ def main_pipeline(X_train, y_train, X_test, y_test, n_trials=100, max_estimators
     date_column : Name of date column in X_train (if DataFrame). If provided and use_weights=True,
                   weights are calculated based on actual dates instead of row order.
                   Date column will be automatically removed from features before training.
+    cv_folds : Number of cross-validation folds (default 5). Reduce to 3 for faster training.
+               Lower values = faster but less robust hyperparameter evaluation.
+    early_stopping : If True, use early stopping for gradient boosting models (XGBoost, LightGBM, CatBoost).
+                     Automatically finds optimal number of estimators. Makes training 2-5x faster.
+    early_stopping_rounds : Number of rounds without improvement before stopping (default 50).
+                            Only used if early_stopping=True.
     """
 
     # Set up output directory
@@ -882,10 +940,32 @@ def main_pipeline(X_train, y_train, X_test, y_test, n_trials=100, max_estimators
         # Update sample weights if using weights now
         if use_weights:
             tuner.sample_weights = sample_weights
+        # Update early stopping settings
+        tuner.early_stopping = early_stopping
+        tuner.early_stopping_rounds = early_stopping_rounds
         print(f"\nContinuing optimization with {n_trials} additional trials per model...")
     else:
-        tuner = ModelTuner(X_train, y_train, cv_folds=5, random_state=random_state,
-                          max_estimators=max_estimators, sample_weights=sample_weights)
+        tuner = ModelTuner(
+            X_train, y_train,
+            cv_folds=cv_folds,
+            random_state=random_state,
+            max_estimators=max_estimators,
+            sample_weights=sample_weights,
+            early_stopping=early_stopping,
+            early_stopping_rounds=early_stopping_rounds
+        )
+
+    # Print configuration
+    print(f"\n{'='*70}")
+    print("TRAINING CONFIGURATION")
+    print(f"{'='*70}")
+    print(f"Cross-validation folds: {cv_folds}")
+    print(f"Early stopping: {'Enabled' if early_stopping else 'Disabled'}")
+    if early_stopping:
+        print(f"  Early stopping rounds: {early_stopping_rounds}")
+        print(f"  Applies to: XGBoost, LightGBM, CatBoost")
+    print(f"Max estimators: {max_estimators}")
+    print(f"Optuna trials per model: {n_trials}")
 
     # Determine which models to train
     models_to_train = ['ExtraTrees', 'XGBoost', 'LightGBM', 'CatBoost', 'HistGradientBoosting',

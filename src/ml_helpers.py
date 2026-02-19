@@ -3,12 +3,11 @@ from sklearn.metrics import accuracy_score
 from typing import Callable
 from pathlib import Path
 
-from supabase_helper import fetch_entire_table
+from supabase_helper import fetch_entire_table, fetch_filtered_table
 
 import polars as pl
 import datetime
 import json
-import glob
 
 import features
 import stepwise_feature_selection
@@ -19,7 +18,14 @@ importlib.reload(ml_pipeline)
 def load_data(supabase) -> (pl.DataFrame, pl.DataFrame, pl.DataFrame, pl.DataFrame):
     schedule = fetch_entire_table(supabase, "schedule")
     games = fetch_entire_table(supabase, "boxscore")
-    player_boxscore = fetch_entire_table(supabase, "player-boxscore")
+    player_boxscore_list = []
+    for i in tqdm(set(schedule["season_id"])):
+        s, pb = fetch_filtered_table(
+            supabase, "schedule", "player-boxscore", "season_id", "game_id", i
+        )
+        player_boxscore_list.append(pb)
+    player_boxscore = pl.concat(player_boxscore_list).unique("id")
+    # player_boxscore = fetch_entire_table(supabase, "player-boxscore", sort=True)
     elo = fetch_entire_table(supabase, "elo")
     playoffs = fetch_entire_table(supabase, "playoffs")
     locations = fetch_entire_table(supabase, "location")
@@ -176,7 +182,9 @@ def run_pipeline(
         use_weights: bool = False,
         n_jobs_optuna: int = 1,
         threshold_metric: str = 'accuracy',
-        save_frequency: str = 'model'
+        save_frequency: str = 'model',
+        early_stopping=True,
+        early_stopping_rounds=50
 ):
     games, schedule, player_boxscore, elo = load_data(supabase)
     print("Data loaded")
@@ -235,7 +243,10 @@ def run_pipeline(
         output_dir=output_dir,
         load_checkpoint=checkpoint_exists,
         save_frequency=save_frequency,
-        date_column='date'
+        date_column='date',
+        cv_folds=n_folds,
+        early_stopping=early_stopping,
+        early_stopping_rounds=early_stopping_rounds
     )
     saved = ml_pipeline.load_pipeline(output_dir)
     return saved

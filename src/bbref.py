@@ -524,3 +524,50 @@ def scrape_missing_team_boxscores(supabase):
             print(f"Error occurred: {e}")
             print("Retrying...")
             time.sleep(2)
+
+
+def scrape_current_roster(driver, team_id):
+    team_url = f"https://www.basketball-reference.com/teams/{team_id}/2026.html"
+    roster_id = "roster"
+    injury_id = "injuries"
+    driver.get(team_url)
+    wait = WebDriverWait(driver, 10)
+    roster_table = wait.until(EC.presence_of_element_located((By.ID, roster_id)))
+    injury_table = wait.until(EC.presence_of_element_located((By.ID, injury_id)))
+    player_names = []
+    player_ids = []
+    player_tbody = roster_table.find_element(By.TAG_NAME, "tbody")
+    player_rows = player_tbody.find_elements(By.TAG_NAME, "tr")
+    for row in player_rows:
+        if not row.find_elements(By.TAG_NAME, "td"):
+            continue
+        first_td = row.find_element(By.TAG_NAME, "td").find_element(By.TAG_NAME, "a")
+        player_names.append(first_td.text)
+        player_id = first_td.get_attribute("href").split("/")[-1].split(".html")[0]
+        player_ids.append(player_id)
+
+    injury_tbody = injury_table.find_element(By.TAG_NAME, "tbody")
+    injury_rows = injury_tbody.find_elements(By.TAG_NAME, "tr")
+    player_injuries = []
+    player_ids_injuries = []
+    for row in injury_rows:
+        first_th = row.find_element(By.TAG_NAME, "th").find_element(By.TAG_NAME, "a")
+        player_id = first_th.get_attribute("href").split("/")[-1].split(".html")[0]
+        player_ids_injuries.append(player_id)
+        injury_report = row.find_elements(By.TAG_NAME, "td")[-1].text
+        player_injuries.append(injury_report)
+
+    roster_df = pl.DataFrame({
+        "player_name": player_names,
+        "player_id": player_ids
+    })
+    injury_df = pl.DataFrame({
+        "player_id": player_ids_injuries,
+        "injury": player_injuries
+    })
+    current_roster = roster_df.join(
+        injury_df,
+        on="player_id",
+        how="left"
+    )
+    return current_roster

@@ -53,14 +53,14 @@ def _(create_client, json, secretmanager):
 @app.cell
 def _(date, importlib, ml_helpers, supabase):
     importlib.reload(ml_helpers)
-    cutoff_dates = [date(2025, 9, 1), date(2025, 12, 1), date(2026, 1, 1), date(2026, 2, 1)]
+    cutoff_dates = [date(2026, 1, 1), date(2026, 2, 1)]
     for c in cutoff_dates:
         pipe = ml_helpers.run_pipeline(
             supabase,
             cutoff_date = c,
             use_weights=True,
             run_fs = True,
-            n_trials=250,
+            n_trials=200,
             max_estimators=1000,
             n_jobs_optuna=4,
             output_dir=f"ensemble_{c.strftime('%Y%m%d')}"
