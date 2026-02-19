@@ -1,3 +1,4 @@
+from supabase_helper import fetch_filtered_table
 from typing import Union, List
 import polars as pl
 
@@ -107,3 +108,45 @@ def elo_season(
         for i in range(len(team_ids))
     ])
     return elo_df
+
+def elo_update(supabase):
+    schedule_current_season, games_current_season = fetch_filtered_table(
+        supabase, "schedule", "boxscore", "season_id", "game_id"
+    )
+    schedule_current_season, elo_current_season = fetch_filtered_table(
+        supabase, "schedule", "elo", "season_id", "game_id"
+    )
+    schedule_last_season, elo_last_season = fetch_filtered_table(
+        supabase, "schedule", "elo", "season_id", "game_id",
+        schedule_current_season["season_id"][0] - 1
+    )
+    games_w_schedule_current_season = schedule_current_season.select([
+        "game_id", "date", "season_id", "home_team", "guest_team"
+    ]).join(
+        games_current_season.select([
+            "game_id", "pts_home", "pts_guest"
+        ]),
+        on="game_id"
+    ).with_columns([
+        pl.col("date").str.to_date()
+    ]).rename({
+        "home_team": "home_team_id",
+        "guest_team": "guest_team_id",
+    })
+    elo_w_schedule_last_season = elo_last_season.join(
+        schedule_last_season[["game_id", "date"]],
+        on="game_id"
+    ).with_columns(
+        pl.col("date").str.to_date()
+    )
+    elo_current_season_updated = elo_season(
+        games_w_schedule_current_season,
+        elo_w_schedule_last_season
+    ).filter(
+        ~pl.col("game_id").is_in(elo_current_season["game_id"].to_list())
+    ).drop("date").to_dicts()
+    if len(elo_current_season_updated) > 0:
+        print("Updating elo")
+        supabase.table("elo").insert(elo_current_season_updated).execute()
+    else:
+        print("No Elo Update required")

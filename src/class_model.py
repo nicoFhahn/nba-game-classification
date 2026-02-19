@@ -12,7 +12,7 @@ def _():
     from ml_pipeline import main_pipeline, load_pipeline
     import features
     from tqdm import tqdm
-    from datetime import date
+    from datetime import date, datetime
     from sklearn.metrics import accuracy_score, brier_score_loss, log_loss
     import polars as pl
     import numpy as np
@@ -20,23 +20,25 @@ def _():
     import lightgbm as lgbm
     import json
     import stepwise_feature_selection
+    import importlib
+    import ml_helpers
+    from pathlib import Path
+    import ml_pipeline
     from google.cloud import secretmanager
     return (
         create_client,
-        features,
-        fetch_entire_table,
+        date,
+        importlib,
         json,
         load_pipeline,
-        log_loss,
+        ml_helpers,
         pl,
         secretmanager,
-        stepwise_feature_selection,
-        tqdm,
     )
 
 
 @app.cell
-def _(create_client, fetch_entire_table, json, pl, secretmanager):
+def _(create_client, json, secretmanager):
     name = "projects/898760610238/secrets/supabase/versions/2"
     client = secretmanager.SecretManagerServiceClient()
     g_response = client.access_secret_version(request={"name": name})
@@ -45,235 +47,26 @@ def _(create_client, fetch_entire_table, json, pl, secretmanager):
     url = payload_dict["postgres"]["project_url"]
     key = payload_dict["postgres"]["api_key"]
     supabase=create_client(url, key)
-    schedule = fetch_entire_table(supabase, "schedule")
-    games = fetch_entire_table(supabase, "boxscore")
-    player_boxscore = fetch_entire_table(supabase, "player-boxscore")
-    elo = fetch_entire_table(supabase, "elo")
-    playoffs = fetch_entire_table(supabase, "playoffs")
-    locations = fetch_entire_table(supabase, "location")
-    schedule = schedule.join(
-        games,
-        on="game_id"
-    ).join(
-        locations,
-        on="arena"
-    ).join(
-        playoffs,
-        on="season_id"
-    ).with_columns(
-        pl.col("date").str.to_date(),
-        pl.col("playoff_start").str.to_date()
-    ).with_columns(
-        (pl.col("date") >= pl.col("playoff_start")).alias("is_playoff_game")
-    )
-    return elo, games, player_boxscore, schedule, supabase
+    return (supabase,)
 
 
 @app.cell
-def _(features, games, pl, player_boxscore, schedule, tqdm):
-    final_data = []
-    # for s in tqdm(set(schedule["season_id"])):
-    for s in tqdm([2015, 2016]):
-        season_schedule = schedule.filter(
-            pl.col("season_id") == s
-        ).sort("date").select([
-            "game_id", "date", "home_team", "guest_team", "pts_home", "pts_guest", "is_playoff_game",
-            "latitude", "longitude"
-        ]).with_columns([
-            (pl.col("pts_home") > pl.col("pts_guest")).alias("is_home_win")
-        ])
-        season_games = season_schedule.select(
-            "game_id", "date", "home_team", "guest_team"
-        ).join(
-            games,
-            on="game_id"
+def _(date, importlib, ml_helpers, supabase):
+    importlib.reload(ml_helpers)
+    cutoff_dates = [date(2025, 9, 1), date(2025, 12, 1), date(2026, 1, 1), date(2026, 2, 1)]
+    for c in cutoff_dates:
+        pipe = ml_helpers.run_pipeline(
+            supabase,
+            cutoff_date = c,
+            use_weights=True,
+            run_fs = True,
+            n_trials=250,
+            max_estimators=1000,
+            n_jobs_optuna=4,
+            output_dir=f"ensemble_{c.strftime('%Y%m%d')}"
         )
-        teams = set(season_games["home_team"])
-        boxscore_dfs = [features.team_boxscores(season_games, team) for team in teams]
-        team_stats = [features.team_season_stats(boxscore_df) for boxscore_df in boxscore_dfs]
-        season_schedule = features.add_overall_winning_pct(season_schedule)
-        season_schedule = features.add_location_winning_pct(season_schedule)
-        season_schedule = features.h2h(season_schedule)
-        season_schedule = features.compute_travel(season_schedule)
-        team_stats = pl.concat(team_stats)
-        joined = season_schedule.drop([
-            "date", "pts_home", "pts_guest",
-            "home_win", "guest_win", "latitude", "longitude"
-        ]).join(
-            team_stats.drop(["date", "is_win"]).rename(
-                lambda c: f"{c}_home"
-            ),
-            left_on=["game_id", "home_team"],
-            right_on=["game_id_home", "team_home"]
-        ).join(
-            team_stats.drop(["date", "is_win"]).rename(
-                lambda c: f"{c}_guest"
-            ),
-            left_on=["game_id", "guest_team"],
-            right_on=["game_id_guest", "team_guest"]
-        )
-        season_boxscore = schedule[["game_id", "season_id"]].join(
-            player_boxscore,
-            on="game_id"
-        ).filter(
-            pl.col("season_id") == s
-        )
-        season_boxscores = season_boxscore.partition_by("team_id")
-        season_player_stats = [features.player_season_stats(boxscore) for boxscore in season_boxscores]
-        season_expected_stats = [features.calculate_expected_team_stats(sps) for sps in season_player_stats]
-        joined = joined.join(
-            pl.concat(season_expected_stats).drop("num_players").rename(
-                lambda c: f"{c}_home_team"
-            ),
-            left_on=["game_id", "home_team"],
-            right_on=["game_id_home_team", "team_id_home_team"],
-            how="left"
-        ).join(
-            pl.concat(season_expected_stats).drop("num_players").rename(
-                lambda c: f"{c}_guest_team"
-            ),
-            left_on=["game_id", "guest_team"],
-            right_on=["game_id_guest_team", "team_id_guest_team"],
-            how="left"
-        )
-        final_data.append(joined)
-    return (final_data,)
-
-
-@app.cell
-def _(elo, final_data, pl, schedule):
-    elo_w_change = elo.with_columns(
-        pl.col("elo_before").shift(7).over(pl.col("team_id")).alias("elo_7_games_before")
-    ).with_columns(
-        (pl.col("elo_before") - pl.col("elo_7_games_before")).alias("elo_change_7_absolute"),
-        (pl.col("elo_before") / pl.col("elo_7_games_before") - 1).alias("elo_change_7_relative")
-    ).drop("elo_7_games_before")
-    df = pl.concat(final_data).join(
-        elo_w_change.drop("id", "elo_after").rename({
-            "elo_before": "elo_home",
-            "elo_change_7_absolute": "elo_change_7_absolute_home",
-            "elo_change_7_relative": "elo_change_7_relative_home"
-        }),
-        left_on=["game_id", "home_team"],
-        right_on=["game_id", "team_id"]
-    ).join(
-        elo_w_change.drop("id", "elo_after").rename({
-            "elo_before": "elo_guest",
-            "elo_change_7_absolute": "elo_change_7_absolute_guest",
-            "elo_change_7_relative": "elo_change_7_relative_guest"
-        }),
-        left_on=["game_id", "guest_team"],
-        right_on=["game_id", "team_id"]
-    )
-    df = schedule.select(
-        "game_id", "date"
-    ).join(
-        df,
-        on="game_id"
-    ).with_columns(
-        pl.col("date").str.to_date()
-    ).sort("date")
-    return (df,)
-
-
-@app.cell
-def _(df, pl, schedule):
-    train_ids = schedule.filter(pl.col("season_id") <= 2024)["game_id"].to_list()
-    test_ids = schedule.filter(pl.col("season_id") == 2025)["game_id"].to_list()
-    val_ids = schedule.filter(pl.col("season_id") == 2026)["game_id"].to_list()
-    train = df.filter(
-        pl.col("game_id").is_in(train_ids)
-    )
-    test = df.filter(
-        pl.col("game_id").is_in(test_ids)
-    )
-    val = df.filter(
-        pl.col("game_id").is_in(val_ids)
-    )
-    X_train = train.drop(["game_id", "date", "home_team", "guest_team", "is_home_win"])
-    X_test = test.drop(["game_id", "date", "home_team", "guest_team", "is_home_win"])
-    X_val = val.drop(["game_id", "date", "home_team", "guest_team", "is_home_win"])
-    y_train = train.select("is_home_win")
-    y_test = test.select("is_home_win")
-    y_val = val.select("is_home_win")
-    return X_test, X_train, X_val, val, y_test, y_train
-
-
-@app.cell
-def _(X_train, json, log_loss, stepwise_feature_selection, y_train):
-    run_fs = False
-    if run_fs:
-        selector = stepwise_feature_selection.LGBMStepwiseFeatureSelector(
-            importance_type='shap',
-            n_folds=5,
-            random_state=87654323,
-            verbose=True,
-            metric=log_loss
-        )
-        selector.fit(
-            X_train.to_numpy(),
-            y_train.to_numpy().ravel()
-        )
-        selected_indices = [
-            int(feat.replace('feature_', '')) 
-            for feat in selector.best_features_
-        ]
-        original_feature_names = X_train.columns
-        best_features_original = [
-            original_feature_names[idx] 
-            for idx in selected_indices
-        ]
-        bf = {
-            "features": best_features_original
-        }
-        with open("bf.json", "w") as f:
-            json.dump(bf, f)
-    else:
-        with open("bf.json", "r") as f:
-            bf = json.load(f)
-    return (bf,)
-
-
-@app.cell
-def _(X_test, X_train, X_val, bf):
-    X_train_best = X_train.select(bf["features"])
-    X_test_best = X_test.select(bf["features"])
-    X_val_best = X_val.select(bf["features"])
-    return X_test_best, X_train_best, X_val_best
-
-
-@app.cell
-def _(X_test_best, X_train_best, y_test, y_train):
-    from pathlib import Path
-    import importlib
-    import ml_pipeline
-    importlib.reload(ml_pipeline)
-    output_dir = 'ensemble_model_v2'
-    n_trials = 500
-    max_estimators = 2000
-    threshold_metric = 'accuracy'
-    n_jobs_optuna = 1
-    random_state = 2343242
-    optuna_verbosity = 1
-    save_frequency = 'model'
-
-    # Check if checkpoint exists
-    checkpoint_exists = Path(output_dir).exists()
-    results = ml_pipeline.main_pipeline(
-        X_train=X_train_best,
-        y_train=y_train,
-        X_test=X_test_best,
-        y_test=y_test,
-        n_trials=n_trials,
-        max_estimators=max_estimators,
-        threshold_metric=threshold_metric,
-        n_jobs_optuna=n_jobs_optuna,
-        random_state=random_state,
-        optuna_verbosity=optuna_verbosity,
-        output_dir=output_dir,
-        load_checkpoint=checkpoint_exists,
-        save_frequency=save_frequency
-    )
+    # need to verify data is in correct order
+    # 0.698
     return
 
 

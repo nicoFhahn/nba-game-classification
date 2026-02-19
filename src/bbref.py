@@ -1,3 +1,4 @@
+import calendar
 import traceback
 import polars as pl
 from selenium import webdriver
@@ -5,9 +6,10 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+from datetime import date, timedelta
 from tqdm import tqdm
 from selenium.common.exceptions import TimeoutException, WebDriverException
-from supabase_helper import fetch_entire_table, fetch_distinct_column
+from supabase_helper import fetch_entire_table, fetch_distinct_column, fetch_month_data
 import time
 
 def start_driver():
@@ -38,7 +40,6 @@ def scrape_season(end_year: int, driver):
         "Box_Score_URL": "game_url"
     })
     return season_df
-
 
 def scrape_month(month_url: str, driver):
     driver.get(month_url)
@@ -121,7 +122,6 @@ def scrape_table_stats(table_id, driver):
     stats_dict = dict(zip(column_names, stat_values))
     
     return stats_dict
-
 
 def scrape_game(game_url, home_abbrev, guest_abbrev, game_id, driver, supabase):
     response = (
@@ -257,7 +257,8 @@ def scrape_missing_player_boxscores(supabase, driver):
             schedule = fetch_entire_table(supabase, "schedule").sort("game_id")
             player_boxscore = fetch_distinct_column(supabase, "player-boxscore", "game_id")
             missing_games = schedule.filter(
-                ~pl.col("game_id").is_in(player_boxscore)
+                (~pl.col("game_id").is_in(player_boxscore)) &
+                (pl.col("game_url") != "")
             )
 
             if len(missing_games) == 0:
@@ -448,3 +449,78 @@ def scrape_missing_player_boxscores(supabase, driver):
             # Restart driver and loop will refetch missing games
             print(f"Restarting and refetching missing games...")
             driver = start_driver()
+
+def update_current_month(supabase, driver):
+    d = date.today() - timedelta(days=(date.today().day == 1))
+    year = date.today().year + (date.today().month >= 10)
+    month_number = d.month
+    month_name = calendar.month_name[month_number].lower()
+    schedule_current_month = fetch_month_data(
+        supabase, "schedule", d, date_column='date', page_size=1000
+    )
+    print("fetched current month from supabase")
+    link = f"https://www.basketball-reference.com/leagues/NBA_{year}_games-{month_name}.html"
+    current_month = scrape_month(link, driver)
+    print("fetched current month from bbref")
+    current_month = current_month.rename({
+        "Date": "date",
+        "Home": "home_team",
+        "Visitor": "guest_team",
+        "Box_Score_URL": "game_url"
+    }).with_columns([
+        pl.lit(year).alias("season_id"),
+        pl.lit(False).alias("is_scraped")
+    ])[schedule_current_month.columns]
+    response = (
+        supabase
+        .table('schedule')
+        .delete()
+        .in_('game_id', schedule_current_month["game_id"].to_list())
+        .execute()
+    )
+    print("deleted old data")
+    supabase.table('schedule').insert(
+        current_month.with_columns(
+            pl.col("date").cast(pl.String)
+        ).to_dicts()
+    ).execute()
+    print("inserted new data")
+    driver.quit()
+
+def scrape_missing_team_boxscores(supabase):
+    while True:
+        try:
+            season = fetch_entire_table(supabase, "schedule").sort("game_id")
+            games = fetch_entire_table(supabase, "boxscore").sort("game_id")
+            missing_games = season.filter(
+                (~pl.col("game_id").is_in(games["game_id"].to_list())) &
+                (pl.col("game_url") != "")
+            )
+            if missing_games.shape[0] > 0:
+                driver = start_driver()
+
+                for i, row in enumerate(tqdm(missing_games.to_dicts(), ncols=100)):
+
+                    # Restart driver every 50 iterations
+                    if i > 0 and i % 50 == 0:
+                        driver.quit()
+                        time.sleep(2)
+                        driver = start_driver()
+
+                    scrape_game(
+                        row["game_url"],
+                        row["home_abbrev"],
+                        row["guest_abbrev"],
+                        row["game_id"],
+                        driver,
+                        supabase
+                    )
+
+                driver.quit()
+            else:
+                # No more missing games, exit the loop
+                break
+        except Exception as e:
+            print(f"Error occurred: {e}")
+            print("Retrying...")
+            time.sleep(2)

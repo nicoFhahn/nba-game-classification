@@ -1,11 +1,28 @@
-.ipynb_checkpoints
-myenv
+# Jupyter
+.ipynb_checkpoints/
 *.ipynb
-todos.txt
-**/__marimo__/
-src/__marimo__/
-**/__pycache__/
+
+# Python
+__pycache__/
 *.pyc
+
+# Virtual environments
+myenv/
+.venv/
+
+# macOS
 .DS_Store
+
+# Data files
 *.csv
 *.xlsx
+
+# Marimo
+__marimo__/
+
+# CatBoost
+catboost_info/
+
+# Project-specific
+todos.txt
+ensemble*/

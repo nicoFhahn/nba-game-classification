@@ -28,10 +28,10 @@ def _():
     from selenium.common.exceptions import TimeoutException, WebDriverException
     return (
         create_client,
+        fetch_distinct_column,
         fetch_entire_table,
         json,
         pl,
-        scrape_missing_player_boxscores,
         secretmanager,
         start_driver,
     )
@@ -51,9 +51,28 @@ def _(create_client, json, secretmanager):
 
 
 @app.cell
-def _(scrape_missing_player_boxscores, start_driver, supabase):
+def _(fetch_distinct_column, fetch_entire_table, start_driver, supabase):
     driver = start_driver()
-    scrape_missing_player_boxscores(supabase, driver)
+    schedule = fetch_entire_table(supabase, "schedule").sort("game_id")
+    player_boxscore = fetch_distinct_column(supabase, "player-boxscore", "game_id")
+    # scrape_missing_player_boxscores(supabase, driver)
+    return (driver,)
+
+
+@app.cell
+def _(driver, missing_games):
+    row = missing_games.to_dicts()[0]
+    home_id_basic = f"box-{row['home_abbrev']}-game-basic"
+    home_id_advanced = f"box-{row['home_abbrev']}-game-advanced"
+    guest_id_basic = f"box-{row['guest_abbrev']}-game-basic"
+    guest_id_advanced = f"box-{row['guest_abbrev']}-game-advanced"
+    print(row["game_url"])
+    driver.get(row["game_url"])
+    return (row,)
+
+
+@app.cell
+def _():
     return
 
 

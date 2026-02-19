@@ -231,18 +231,18 @@ def _(mo):
 
     #### ML Modelling
     - Run the modelling pipeline with the expected team values
-    - Add a boolean parameter to the pipeline that decides whether more recent observations should be more influential
+    - Add a boolean parameter to the pipeline that decides whether more recent observations should be more influential -> Added
     - Train the model until beginning of the season; train again after each month + make predictions
     - Turn this into an automated pipeline that trains the model first of the month.
     - At prediction for next games, pull all the injury reports for each team and then make predictions based on all possible player combinations (i.e. player 1 plays, 2 does not, 1 plays, 2 plays, ...)
 
     #### Database Topics
-    - Location table. Arena name + coordinates
+    - Location table. Arena name + coordinates -> Completed
     - Playoff dates table -> Completed
     - Injury Report Table
 
     #### UI
-    - Elo over time. Chart / Table -> Done
+    - Elo over time. Chart / Table -> Completed
     - Shapley DB connection
 
     #### Server Automation

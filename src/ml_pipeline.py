@@ -12,9 +12,11 @@ from sklearn.ensemble import (
     RandomForestClassifier,
     HistGradientBoostingClassifier
 )
+from sklearn.linear_model import LogisticRegression, SGDClassifier
+from sklearn.naive_bayes import GaussianNB, BernoulliNB
 from sklearn.metrics import (
-    roc_auc_score, 
-    accuracy_score, 
+    roc_auc_score,
+    accuracy_score,
     f1_score,
     precision_score,
     recall_score,
@@ -43,40 +45,71 @@ warnings.filterwarnings('ignore')
 
 class ModelTuner:
     """Unified class for tuning all models with Optuna"""
-    
-    def __init__(self, X_train, y_train, cv_folds=5, random_state=42, max_estimators=1000):
+
+    def __init__(self, X_train, y_train, cv_folds=5, random_state=42, max_estimators=1000, sample_weights=None):
         self.X_train = X_train
         self.y_train = y_train
         self.cv = StratifiedKFold(n_splits=cv_folds, shuffle=True, random_state=random_state)
         self.random_state = random_state
         self.max_estimators = max_estimators
+        self.sample_weights = sample_weights
         self.best_models = {}
         self.best_params = {}
         self.studies = {}
-    
+
+    def _cross_val_score_weighted(self, model):
+        """
+        Perform cross-validation with optional sample weights
+
+        Returns:
+        --------
+        float : Mean ROC-AUC score across folds
+        """
+        scores = []
+
+        for train_idx, val_idx in self.cv.split(self.X_train, self.y_train):
+            X_fold_train = self.X_train[train_idx]
+            y_fold_train = self.y_train[train_idx]
+            X_fold_val = self.X_train[val_idx]
+            y_fold_val = self.y_train[val_idx]
+
+            # Train with weights if provided
+            if self.sample_weights is not None:
+                fold_weights = self.sample_weights[train_idx]
+                model.fit(X_fold_train, y_fold_train, sample_weight=fold_weights)
+            else:
+                model.fit(X_fold_train, y_fold_train)
+
+            # Evaluate
+            y_pred_proba = model.predict_proba(X_fold_val)[:, 1]
+            score = roc_auc_score(y_fold_val, y_pred_proba)
+            scores.append(score)
+
+        return np.mean(scores)
+
     def save_checkpoint(self, output_dir):
         """Save all models, parameters, and studies to disk"""
         output_path = Path(output_dir)
         output_path.mkdir(parents=True, exist_ok=True)
-        
+
         # Save models
         models_dir = output_path / 'models'
         models_dir.mkdir(exist_ok=True)
         for name, model in self.best_models.items():
             with open(models_dir / f'{name}.pkl', 'wb') as f:
                 pickle.dump(model, f)
-        
+
         # Save best parameters
         with open(output_path / 'best_params.json', 'w') as f:
             json.dump(self.best_params, f, indent=2)
-        
+
         # Save studies (Optuna optimization history)
         studies_dir = output_path / 'studies'
         studies_dir.mkdir(exist_ok=True)
         for name, study in self.studies.items():
             with open(studies_dir / f'{name}_study.pkl', 'wb') as f:
                 pickle.dump(study, f)
-        
+
         # Save metadata
         metadata = {
             'random_state': self.random_state,
@@ -87,36 +120,36 @@ class ModelTuner:
         }
         with open(output_path / 'metadata.json', 'w') as f:
             json.dump(metadata, f, indent=2)
-        
+
         print(f"\n✓ Checkpoint saved to: {output_path}")
         print(f"  - Models saved: {len(self.best_models)}")
         print(f"  - Studies saved: {len(self.studies)}")
-    
+
     @classmethod
     def load_checkpoint(cls, output_dir, X_train, y_train):
         """Load models, parameters, and studies from disk to continue training"""
         output_path = Path(output_dir)
-        
+
         if not output_path.exists():
             raise FileNotFoundError(f"Checkpoint directory not found: {output_dir}")
-        
+
         # Load metadata
         with open(output_path / 'metadata.json', 'r') as f:
             metadata = json.load(f)
-        
+
         # Create instance with saved settings
         instance = cls(
-            X_train, y_train, 
+            X_train, y_train,
             cv_folds=metadata['cv_folds'],
             random_state=metadata['random_state'],
             max_estimators=metadata['max_estimators']
         )
-        
+
         # Load best parameters
         if (output_path / 'best_params.json').exists():
             with open(output_path / 'best_params.json', 'r') as f:
                 instance.best_params = json.load(f)
-        
+
         # Load models
         models_dir = output_path / 'models'
         if models_dir.exists():
@@ -124,7 +157,7 @@ class ModelTuner:
                 model_name = model_file.stem
                 with open(model_file, 'rb') as f:
                     instance.best_models[model_name] = pickle.load(f)
-        
+
         # Load studies
         studies_dir = output_path / 'studies'
         if studies_dir.exists():
@@ -132,14 +165,14 @@ class ModelTuner:
                 model_name = study_file.stem.replace('_study', '')
                 with open(study_file, 'rb') as f:
                     instance.studies[model_name] = pickle.load(f)
-        
+
         print(f"\n✓ Checkpoint loaded from: {output_path}")
         print(f"  - Models loaded: {len(instance.best_models)}")
         print(f"  - Studies loaded: {len(instance.studies)}")
         print(f"  - Timestamp: {metadata['timestamp']}")
-        
+
         return instance
-        
+
     def objective_extratrees(self, trial):
         """Optuna objective for ExtraTrees"""
         params = {
@@ -153,12 +186,10 @@ class ModelTuner:
             'random_state': self.random_state,
             'n_jobs': -1
         }
-        
+
         model = ExtraTreesClassifier(**params)
-        scores = cross_val_score(model, self.X_train, self.y_train, 
-                                cv=self.cv, scoring='roc_auc', n_jobs=-1)
-        return scores.mean()
-    
+        return self._cross_val_score_weighted(model)
+
     def objective_randomforest(self, trial):
         """Optuna objective for RandomForest"""
         params = {
@@ -171,12 +202,10 @@ class ModelTuner:
             'random_state': self.random_state,
             'n_jobs': -1
         }
-        
+
         model = RandomForestClassifier(**params)
-        scores = cross_val_score(model, self.X_train, self.y_train, 
-                                cv=self.cv, scoring='roc_auc', n_jobs=-1)
-        return scores.mean()
-    
+        return self._cross_val_score_weighted(model)
+
     def objective_xgboost(self, trial):
         """Optuna objective for XGBoost"""
         params = {
@@ -193,12 +222,10 @@ class ModelTuner:
             'tree_method': 'hist',
             'eval_metric': 'logloss'
         }
-        
+
         model = xgb.XGBClassifier(**params)
-        scores = cross_val_score(model, self.X_train, self.y_train, 
-                                cv=self.cv, scoring='roc_auc', n_jobs=-1)
-        return scores.mean()
-    
+        return self._cross_val_score_weighted(model)
+
     def objective_lightgbm(self, trial):
         """Optuna objective for LightGBM"""
         params = {
@@ -214,12 +241,10 @@ class ModelTuner:
             'random_state': self.random_state,
             'verbose': -1
         }
-        
+
         model = lgb.LGBMClassifier(**params)
-        scores = cross_val_score(model, self.X_train, self.y_train, 
-                                cv=self.cv, scoring='roc_auc', n_jobs=-1)
-        return scores.mean()
-    
+        return self._cross_val_score_weighted(model)
+
     def objective_catboost(self, trial):
         """Optuna objective for CatBoost"""
         params = {
@@ -233,12 +258,10 @@ class ModelTuner:
             'random_state': self.random_state,
             'verbose': False
         }
-        
+
         model = cb.CatBoostClassifier(**params)
-        scores = cross_val_score(model, self.X_train, self.y_train, 
-                                cv=self.cv, scoring='roc_auc', n_jobs=-1)
-        return scores.mean()
-    
+        return self._cross_val_score_weighted(model)
+
     def objective_histgradient(self, trial):
         """Optuna objective for HistGradientBoosting"""
         params = {
@@ -250,15 +273,76 @@ class ModelTuner:
             'max_bins': trial.suggest_int('max_bins', 128, 255),
             'random_state': self.random_state
         }
-        
+
         model = HistGradientBoostingClassifier(**params)
-        scores = cross_val_score(model, self.X_train, self.y_train, 
-                                cv=self.cv, scoring='roc_auc', n_jobs=-1)
-        return scores.mean()
-    
+        return self._cross_val_score_weighted(model)
+
+    def objective_logistic(self, trial):
+        """Optuna objective for Logistic Regression"""
+        params = {
+            'penalty': trial.suggest_categorical('penalty', ['l1', 'l2', 'elasticnet', None]),
+            'C': trial.suggest_float('C', 1e-4, 10.0, log=True),
+            'solver': 'saga',  # saga supports all penalties
+            'max_iter': 1000,
+            'class_weight': trial.suggest_categorical('class_weight', ['balanced', None]),
+            'random_state': self.random_state,
+            'n_jobs': -1
+        }
+
+        # ElasticNet requires l1_ratio
+        if params['penalty'] == 'elasticnet':
+            params['l1_ratio'] = trial.suggest_float('l1_ratio', 0.0, 1.0)
+
+        # None penalty doesn't support saga, use lbfgs
+        if params['penalty'] is None:
+            params['solver'] = 'lbfgs'
+
+        model = LogisticRegression(**params)
+        return self._cross_val_score_weighted(model)
+
+    def objective_sgd(self, trial):
+        """Optuna objective for SGD Classifier"""
+        params = {
+            'loss': trial.suggest_categorical('loss', ['hinge', 'log_loss', 'modified_huber', 'perceptron']),
+            'penalty': trial.suggest_categorical('penalty', ['l2', 'l1', 'elasticnet']),
+            'alpha': trial.suggest_float('alpha', 1e-5, 1e-1, log=True),
+            'max_iter': 1000,
+            'tol': 1e-3,
+            'class_weight': trial.suggest_categorical('class_weight', ['balanced', None]),
+            'random_state': self.random_state,
+            'n_jobs': -1
+        }
+
+        # ElasticNet requires l1_ratio
+        if params['penalty'] == 'elasticnet':
+            params['l1_ratio'] = trial.suggest_float('l1_ratio', 0.0, 1.0)
+
+        model = SGDClassifier(**params)
+        return self._cross_val_score_weighted(model)
+
+    def objective_gaussiannb(self, trial):
+        """Optuna objective for Gaussian Naive Bayes"""
+        params = {
+            'var_smoothing': trial.suggest_float('var_smoothing', 1e-11, 1e-5, log=True)
+        }
+
+        model = GaussianNB(**params)
+        return self._cross_val_score_weighted(model)
+
+    def objective_bernoullinb(self, trial):
+        """Optuna objective for Bernoulli Naive Bayes"""
+        params = {
+            'alpha': trial.suggest_float('alpha', 1e-3, 10.0, log=True),
+            'binarize': trial.suggest_float('binarize', 0.0, 1.0),
+            'fit_prior': trial.suggest_categorical('fit_prior', [True, False])
+        }
+
+        model = BernoulliNB(**params)
+        return self._cross_val_score_weighted(model)
+
     def tune_model(self, model_name, n_trials=100, n_jobs=1, optuna_verbosity=1):
         """Tune a specific model using Optuna
-        
+
         Parameters:
         -----------
         model_name : str
@@ -273,16 +357,20 @@ class ModelTuner:
         print(f"\n{'='*70}")
         print(f"Tuning {model_name}...")
         print(f"{'='*70}")
-        
+
         objectives = {
             'ExtraTrees': self.objective_extratrees,
             'RandomForest': self.objective_randomforest,
             'XGBoost': self.objective_xgboost,
             'LightGBM': self.objective_lightgbm,
             'CatBoost': self.objective_catboost,
-            'HistGradientBoosting': self.objective_histgradient
+            'HistGradientBoosting': self.objective_histgradient,
+            'LogisticRegression': self.objective_logistic,
+            'SGDClassifier': self.objective_sgd,
+            'GaussianNB': self.objective_gaussiannb,
+            'BernoulliNB': self.objective_bernoullinb
         }
-        
+
         # Check if we have an existing study to continue from
         if model_name in self.studies:
             study = self.studies[model_name]
@@ -294,20 +382,20 @@ class ModelTuner:
                 sampler=TPESampler(seed=self.random_state),
                 study_name=f'{model_name}_optimization'
             )
-        
+
         show_progress = optuna_verbosity >= 1
         study.optimize(objectives[model_name], n_trials=n_trials, n_jobs=n_jobs, show_progress_bar=show_progress)
-        
+
         print(f"\nBest {model_name} CV ROC-AUC: {study.best_value:.4f}")
         print(f"Total trials completed: {len(study.trials)}")
         print(f"Best parameters:")
         for key, value in study.best_params.items():
             print(f"  {key}: {value}")
-        
+
         # Train final model with best parameters
         best_params = study.best_params
         self.best_params[model_name] = best_params
-        
+
         if model_name == 'ExtraTrees':
             model = ExtraTreesClassifier(**best_params, random_state=self.random_state, n_jobs=-1)
         elif model_name == 'RandomForest':
@@ -320,16 +408,29 @@ class ModelTuner:
             model = cb.CatBoostClassifier(**best_params, random_state=self.random_state, verbose=False)
         elif model_name == 'HistGradientBoosting':
             model = HistGradientBoostingClassifier(**best_params, random_state=self.random_state)
-        
-        model.fit(self.X_train, self.y_train)
+        elif model_name == 'LogisticRegression':
+            model = LogisticRegression(**best_params, random_state=self.random_state, n_jobs=-1)
+        elif model_name == 'SGDClassifier':
+            model = SGDClassifier(**best_params, random_state=self.random_state, n_jobs=-1)
+        elif model_name == 'GaussianNB':
+            model = GaussianNB(**best_params)
+        elif model_name == 'BernoulliNB':
+            model = BernoulliNB(**best_params)
+
+        # Train with sample weights if provided
+        if self.sample_weights is not None:
+            model.fit(self.X_train, self.y_train, sample_weight=self.sample_weights)
+        else:
+            model.fit(self.X_train, self.y_train)
+
         self.best_models[model_name] = model
         self.studies[model_name] = study
-        
+
         return study
-    
+
     def tune_all_models(self, n_trials=100, n_jobs=1, optuna_verbosity=1):
         """Tune all models
-        
+
         Parameters:
         -----------
         n_trials : int
@@ -339,12 +440,13 @@ class ModelTuner:
         optuna_verbosity : int
             0=no output, 1=progress bar only, 2=info, 3=debug
         """
-        models = ['ExtraTrees', 'XGBoost', 'LightGBM', 'CatBoost', 'HistGradientBoosting']
+        models = ['ExtraTrees', 'XGBoost', 'LightGBM', 'CatBoost', 'HistGradientBoosting',
+                  'LogisticRegression', 'SGDClassifier', 'GaussianNB', 'BernoulliNB']
         studies = {}
-        
+
         for model_name in models:
             studies[model_name] = self.tune_model(model_name, n_trials, n_jobs, optuna_verbosity)
-        
+
         return studies
 
 
@@ -354,7 +456,7 @@ class ModelTuner:
 
 class WeightedEnsemble:
     """Weighted ensemble with Optuna-optimized weights"""
-    
+
     def __init__(self, models_dict, X_val, y_val, random_state=42):
         self.models = models_dict
         self.X_val = X_val
@@ -362,12 +464,12 @@ class WeightedEnsemble:
         self.random_state = random_state
         self.weights = None
         self.model_names = list(models_dict.keys())
-        
+
         # Get predictions from all models
         self.predictions = {}
         for name, model in self.models.items():
             self.predictions[name] = model.predict_proba(X_val)[:, 1]
-    
+
     def objective_weights(self, trial):
         """Optuna objective for ensemble weights"""
         # Suggest weights for each model
@@ -375,23 +477,23 @@ class WeightedEnsemble:
         for name in self.model_names:
             w = trial.suggest_float(f'weight_{name}', 0.0, 1.0)
             weights.append(w)
-        
+
         # Normalize weights
         weights = np.array(weights)
         weights = weights / weights.sum()
-        
+
         # Calculate weighted ensemble predictions
         ensemble_pred = np.zeros(len(self.y_val))
         for i, name in enumerate(self.model_names):
             ensemble_pred += weights[i] * self.predictions[name]
-        
+
         # Calculate ROC-AUC
         score = roc_auc_score(self.y_val, ensemble_pred)
         return score
-    
+
     def optimize_weights(self, n_trials=200, optuna_verbosity=1):
         """Optimize ensemble weights using Optuna
-        
+
         Parameters:
         -----------
         n_trials : int
@@ -402,43 +504,43 @@ class WeightedEnsemble:
         print(f"\n{'='*70}")
         print("Optimizing Ensemble Weights...")
         print(f"{'='*70}")
-        
+
         study = optuna.create_study(
             direction='maximize',
             sampler=TPESampler(seed=self.random_state),
             study_name='ensemble_weights_optimization'
         )
-        
+
         show_progress = optuna_verbosity >= 1
         study.optimize(self.objective_weights, n_trials=n_trials, show_progress_bar=show_progress)
-        
+
         # Extract and normalize best weights
         weights = []
         for name in self.model_names:
             weights.append(study.best_params[f'weight_{name}'])
-        
+
         weights = np.array(weights)
         self.weights = weights / weights.sum()
-        
+
         print(f"\nBest Ensemble ROC-AUC: {study.best_value:.4f}")
         print("\nOptimized Weights:")
         for name, weight in zip(self.model_names, self.weights):
             print(f"  {name}: {weight:.4f}")
-        
+
         return study
-    
+
     def predict_proba(self, X):
         """Predict probabilities using weighted ensemble"""
         if self.weights is None:
             raise ValueError("Weights not optimized yet. Call optimize_weights() first.")
-        
+
         ensemble_pred = np.zeros(len(X))
         for i, name in enumerate(self.model_names):
             pred = self.models[name].predict_proba(X)[:, 1]
             ensemble_pred += self.weights[i] * pred
-        
+
         return ensemble_pred
-    
+
     def predict(self, X, threshold=0.5):
         """Predict classes using weighted ensemble"""
         proba = self.predict_proba(X)
@@ -451,17 +553,17 @@ class WeightedEnsemble:
 
 class ThresholdOptimizer:
     """Optimize decision threshold for best performance"""
-    
+
     def __init__(self, y_true, y_proba):
         self.y_true = y_true
         self.y_proba = y_proba
         self.best_threshold = 0.5
         self.threshold_metrics = {}
-    
+
     def optimize_threshold(self, metric='f1', beta=1.0):
         """
         Optimize threshold based on specified metric
-        
+
         Parameters:
         -----------
         metric : str
@@ -472,25 +574,25 @@ class ThresholdOptimizer:
         print(f"\n{'='*70}")
         print(f"Optimizing Threshold for {metric.upper()}...")
         print(f"{'='*70}")
-        
+
         # Calculate ROC curve
         fpr, tpr, thresholds = roc_curve(self.y_true, self.y_proba)
-        
+
         # For log_loss, we want to minimize (so we'll negate it for maximization)
         if metric == 'log_loss':
             best_score = np.inf  # We want to minimize log_loss
         else:
             best_score = -np.inf
-        
+
         best_threshold = 0.5
-        
+
         # Test different thresholds
         threshold_range = np.linspace(0.01, 0.99, 99)
         scores = []
-        
+
         for threshold in threshold_range:
             y_pred = (self.y_proba >= threshold).astype(int)
-            
+
             if metric == 'f1':
                 score = f1_score(self.y_true, y_pred)
             elif metric == 'accuracy':
@@ -519,9 +621,9 @@ class ThresholdOptimizer:
                 score = log_loss(self.y_true, self.y_proba)
             else:
                 raise ValueError(f"Unknown metric: {metric}. Supported metrics: 'f1', 'accuracy', 'precision', 'recall', 'balanced_accuracy', 'youden', 'fbeta', 'log_loss'")
-            
+
             scores.append(score)
-            
+
             # Update best score
             if metric == 'log_loss':
                 if score < best_score:  # Minimize log_loss
@@ -531,7 +633,7 @@ class ThresholdOptimizer:
                 if score > best_score:  # Maximize other metrics
                     best_score = score
                     best_threshold = threshold
-        
+
         self.best_threshold = best_threshold
         self.threshold_metrics[metric] = {
             'threshold': best_threshold,
@@ -539,13 +641,13 @@ class ThresholdOptimizer:
             'all_thresholds': threshold_range,
             'all_scores': scores
         }
-        
+
         print(f"\nBest Threshold: {best_threshold:.4f}")
         if metric == 'log_loss':
             print(f"Best {metric.upper()} Score: {best_score:.4f} (lower is better)")
         else:
             print(f"Best {metric.upper()} Score: {best_score:.4f}")
-        
+
         # Print metrics at best threshold
         y_pred_best = (self.y_proba >= best_threshold).astype(int)
         print(f"\nMetrics at best threshold:")
@@ -554,13 +656,13 @@ class ThresholdOptimizer:
         print(f"  F1-Score: {f1_score(self.y_true, y_pred_best):.4f}")
         print(f"  Accuracy: {accuracy_score(self.y_true, y_pred_best):.4f}")
         print(f"  Log Loss: {log_loss(self.y_true, self.y_proba):.4f}")
-        
+
         return best_threshold, best_score
-    
+
     def get_metrics_at_threshold(self, threshold):
         """Get all metrics at a specific threshold"""
         y_pred = (self.y_proba >= threshold).astype(int)
-        
+
         return {
             'threshold': threshold,
             'accuracy': accuracy_score(self.y_true, y_pred),
@@ -582,13 +684,13 @@ def evaluate_models(models_dict, X_test, y_test, threshold=0.5):
     print(f"\n{'='*70}")
     print("MODEL EVALUATION ON TEST SET")
     print(f"{'='*70}")
-    
+
     results = {}
-    
+
     for name, model in models_dict.items():
         y_proba = model.predict_proba(X_test)[:, 1]
         y_pred = (y_proba >= threshold).astype(int)
-        
+
         results[name] = {
             'ROC-AUC': roc_auc_score(y_test, y_proba),
             'Accuracy': accuracy_score(y_test, y_pred),
@@ -596,14 +698,14 @@ def evaluate_models(models_dict, X_test, y_test, threshold=0.5):
             'Recall': recall_score(y_test, y_pred),
             'F1-Score': f1_score(y_test, y_pred)
         }
-    
+
     # Create comparison DataFrame
     results_df = pd.DataFrame(results).T
     results_df = results_df.sort_values('ROC-AUC', ascending=False)
-    
+
     print("\n" + results_df.to_string())
     print(f"\n{'='*70}")
-    
+
     return results_df
 
 
@@ -611,12 +713,13 @@ def evaluate_models(models_dict, X_test, y_test, threshold=0.5):
 # MAIN EXECUTION PIPELINE
 # ============================================================================
 
-def main_pipeline(X_train, y_train, X_test, y_test, n_trials=100, max_estimators=1000, 
+def main_pipeline(X_train, y_train, X_test, y_test, n_trials=100, max_estimators=1000,
                   threshold_metric='f1', n_jobs_optuna=1, random_state=42, optuna_verbosity=1,
-                  output_dir=None, load_checkpoint=False, save_frequency='model'):
+                  output_dir=None, load_checkpoint=False, save_frequency='model',
+                  use_weights=False, weight_decay=0.99, date_column=None):
     """
     Complete ML pipeline
-    
+
     Parameters:
     -----------
     X_train, y_train : Training data (Polars/Pandas DataFrame or numpy array)
@@ -630,15 +733,21 @@ def main_pipeline(X_train, y_train, X_test, y_test, n_trials=100, max_estimators
     output_dir : Directory to save checkpoints. If None, creates 'ml_pipeline_output_{timestamp}'
     load_checkpoint : If True, load existing checkpoint from output_dir and continue tuning
     save_frequency : When to save checkpoints ('model'=after each model, 'end'=only at end, 'never'=don't save)
+    use_weights : If True, weight recent observations more heavily (exponential decay)
+    weight_decay : Decay factor for sample weights (default 0.99). Higher = more emphasis on recent data.
+                   Only used if use_weights=True. Range: 0.9 (strong decay) to 0.999 (mild decay)
+    date_column : Name of date column in X_train (if DataFrame). If provided and use_weights=True,
+                  weights are calculated based on actual dates instead of row order.
+                  Date column will be automatically removed from features before training.
     """
-    
+
     # Set up output directory
     if output_dir is None:
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         output_dir = f'ml_pipeline_output_{timestamp}'
-    
+
     output_path = Path(output_dir)
-    
+
     # Set Optuna verbosity level
     if optuna_verbosity == 0:
         optuna.logging.set_verbosity(optuna.logging.WARNING)
@@ -648,7 +757,32 @@ def main_pipeline(X_train, y_train, X_test, y_test, n_trials=100, max_estimators
         optuna.logging.set_verbosity(optuna.logging.INFO)
     elif optuna_verbosity == 3:
         optuna.logging.set_verbosity(optuna.logging.DEBUG)
-    
+
+    # Extract and store date column if provided (before converting to numpy)
+    dates_train = None
+    if date_column is not None and hasattr(X_train, 'columns'):
+        if date_column in X_train.columns:
+            # Extract dates
+            if hasattr(X_train, 'to_pandas'):  # Polars
+                dates_train = X_train[date_column].to_pandas()
+            else:  # Pandas
+                dates_train = X_train[date_column]
+
+            # Remove date column from features
+            print(f"\n{'='*70}")
+            print(f"EXTRACTING DATE COLUMN: '{date_column}'")
+            print(f"{'='*70}")
+            print(f"Date range: {dates_train.min()} to {dates_train.max()}")
+            print(f"Removing '{date_column}' from features before training")
+
+            # Remove from X_train
+            if hasattr(X_train, 'drop'):  # Polars or Pandas
+                X_train = X_train.drop(date_column)
+            else:
+                raise ValueError(f"date_column specified but X_train doesn't support .drop()")
+        else:
+            raise ValueError(f"date_column '{date_column}' not found in X_train. Available columns: {X_train.columns}")
+
     # Convert Polars DataFrames to numpy arrays if needed
     if hasattr(X_train, 'to_numpy'):  # Polars or Pandas DataFrame
         X_train = X_train.to_numpy()
@@ -658,19 +792,19 @@ def main_pipeline(X_train, y_train, X_test, y_test, n_trials=100, max_estimators
         y_train = y_train.to_numpy()
     if hasattr(y_test, 'to_numpy'):
         y_test = y_test.to_numpy()
-    
+
     # Flatten target arrays if needed
     if len(y_train.shape) > 1:
         y_train = y_train.ravel()
     if len(y_test.shape) > 1:
         y_test = y_test.ravel()
-    
+
     # Split test set for validation (ensemble optimization) and final test
     from sklearn.model_selection import train_test_split
     X_val, X_test_final, y_val, y_test_final = train_test_split(
         X_test, y_test, test_size=0.5, random_state=random_state, stratify=y_test
     )
-    
+
     print(f"\n{'='*70}")
     print("DATASET INFORMATION")
     print(f"{'='*70}")
@@ -678,20 +812,84 @@ def main_pipeline(X_train, y_train, X_test, y_test, n_trials=100, max_estimators
     print(f"Validation set: {X_val.shape[0]} samples")
     print(f"Test set: {X_test_final.shape[0]} samples")
     print(f"Target distribution (train): {np.bincount(y_train)}")
-    
+
+    # Calculate sample weights if requested
+    sample_weights = None
+    if use_weights:
+        print(f"\n{'='*70}")
+        print("CALCULATING SAMPLE WEIGHTS")
+        print(f"{'='*70}")
+
+        if dates_train is not None:
+            # Use actual dates for weighting
+            print(f"Using date-based weighting from column '{date_column}'")
+            print(f"Weight decay factor: {weight_decay}")
+
+            # Convert dates to numeric (days since earliest date)
+            import pandas as pd
+            dates_numeric = pd.to_datetime(dates_train)
+            days_since_first = (dates_numeric - dates_numeric.min()).dt.days.values
+
+            # Calculate weights based on time gaps
+            # weight = decay^(days_ago)
+            max_days = days_since_first.max()
+            days_ago = max_days - days_since_first  # Most recent = 0 days ago
+
+            # Use daily decay
+            sample_weights = weight_decay ** days_ago
+
+            # Normalize
+            sample_weights = sample_weights * (len(sample_weights) / sample_weights.sum())
+
+            print(f"\nDate-based weight statistics:")
+            print(f"  Date range: {dates_numeric.min().strftime('%Y-%m-%d')} to {dates_numeric.max().strftime('%Y-%m-%d')}")
+            print(f"  Total days: {max_days}")
+            print(f"  Oldest sample ({dates_numeric.min().strftime('%Y-%m-%d')}):  weight = {sample_weights.min():.4f}")
+            print(f"  Median sample: weight = {np.median(sample_weights):.4f}")
+            print(f"  Newest sample ({dates_numeric.max().strftime('%Y-%m-%d')}): weight = {sample_weights.max():.4f}")
+            print(f"  Weight ratio (newest/oldest): {sample_weights.max() / sample_weights.min():.2f}x")
+
+        else:
+            # Use row-based weighting (original behavior)
+            print(f"Using row-based weighting (no date column provided)")
+            print(f"Weight decay factor: {weight_decay}")
+            print(f"Assuming data is sorted: oldest first, newest last")
+
+            n_samples = len(y_train)
+            sample_weights = np.array([weight_decay ** (n_samples - i - 1) for i in range(n_samples)])
+
+            # Normalize
+            sample_weights = sample_weights * (n_samples / sample_weights.sum())
+
+            print(f"\nRow-based weight statistics:")
+            print(f"  Oldest sample (row 0):     weight = {sample_weights[0]:.4f}")
+            print(f"  Median sample (row {n_samples//2}): weight = {np.median(sample_weights):.4f}")
+            print(f"  Newest sample (row {n_samples-1}):  weight = {sample_weights[-1]:.4f}")
+            print(f"  Weight ratio (newest/oldest): {sample_weights[-1] / sample_weights[0]:.2f}x")
+
+        print(f"  Sum of weights: {sample_weights.sum():.0f} (normalized to sample count)")
+
+    else:
+        print(f"\nSample weights: Not using (all samples weighted equally)")
+
     # ========================================================================
     # STEP 1: Tune individual models
     # ========================================================================
-    
+
     # Load checkpoint if requested
     if load_checkpoint and output_path.exists():
         tuner = ModelTuner.load_checkpoint(output_dir, X_train, y_train)
+        # Update sample weights if using weights now
+        if use_weights:
+            tuner.sample_weights = sample_weights
         print(f"\nContinuing optimization with {n_trials} additional trials per model...")
     else:
-        tuner = ModelTuner(X_train, y_train, cv_folds=5, random_state=random_state, max_estimators=max_estimators)
-    
+        tuner = ModelTuner(X_train, y_train, cv_folds=5, random_state=random_state,
+                          max_estimators=max_estimators, sample_weights=sample_weights)
+
     # Determine which models to train
-    models_to_train = ['ExtraTrees', 'XGBoost', 'LightGBM', 'CatBoost', 'HistGradientBoosting']
+    models_to_train = ['ExtraTrees', 'XGBoost', 'LightGBM', 'CatBoost', 'HistGradientBoosting',
+                       'LogisticRegression', 'SGDClassifier', 'GaussianNB', 'BernoulliNB']
     
     # Tune models individually and save after each if requested
     for model_name in models_to_train:
