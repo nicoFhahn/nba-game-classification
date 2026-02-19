@@ -25,16 +25,7 @@ def _():
     from pathlib import Path
     import ml_pipeline
     from google.cloud import secretmanager
-    return (
-        create_client,
-        date,
-        importlib,
-        json,
-        load_pipeline,
-        ml_helpers,
-        pl,
-        secretmanager,
-    )
+    return create_client, json, load_pipeline, pl, secretmanager
 
 
 @app.cell
@@ -50,8 +41,8 @@ def _(create_client, json, secretmanager):
     return (supabase,)
 
 
-@app.cell
-def _(date, importlib, ml_helpers, supabase):
+app._unparsable_cell(
+    r"""
     importlib.reload(ml_helpers)
     cutoff_dates = [date(2026, 1, 1), date(2026, 2, 1)]
     for c in cutoff_dates:
@@ -63,11 +54,14 @@ def _(date, importlib, ml_helpers, supabase):
             n_trials=200,
             max_estimators=1000,
             n_jobs_optuna=4,
-            output_dir=f"ensemble_{c.strftime('%Y%m%d')}"
+            output_dir=f"ensemble_{c.strftime('%Y%m%d')}",
+            ['ExtraTrees', 'XGBoost', 'LightGBM', 'CatBoost', 'LogisticRegression']
         )
     # need to verify data is in correct order
     # 0.698
-    return
+    """,
+    name="_"
+)
 
 
 @app.cell

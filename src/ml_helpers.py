@@ -8,6 +8,7 @@ from supabase_helper import fetch_entire_table, fetch_filtered_table
 import polars as pl
 import datetime
 import json
+import os
 
 import features
 import stepwise_feature_selection
@@ -195,7 +196,7 @@ def run_pipeline(
     )
     print("Data split")
     filename = f"best_features_{output_dir}.json"
-    if run_fs:
+    if run_fs and not os.path.exists(filename):
         selector = stepwise_feature_selection.LGBMStepwiseFeatureSelector(
             importance_type=importance_type,
             n_folds=n_folds,

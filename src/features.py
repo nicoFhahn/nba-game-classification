@@ -34,7 +34,7 @@ def add_overall_winning_pct(df):
         .group_by("team")
         .agg([
             pl.col("date"),
-            pl.col("win").cum_sum().shift(1, fill_value=0).alias("cumulative_wins"),
+            pl.col("win").sort_by("date").cum_sum().shift(1, fill_value=0).alias("cumulative_wins"),
             pl.int_range(pl.len()).alias("cumulative_games")
         ])
         .explode(["date", "cumulative_wins", "cumulative_games"])

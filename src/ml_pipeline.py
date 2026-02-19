@@ -968,8 +968,8 @@ def main_pipeline(X_train, y_train, X_test, y_test, n_trials=100, max_estimators
     print(f"Optuna trials per model: {n_trials}")
 
     # Determine which models to train
-    models_to_train = ['ExtraTrees', 'XGBoost', 'LightGBM', 'CatBoost', 'HistGradientBoosting',
-                       'LogisticRegression', 'SGDClassifier', 'GaussianNB', 'BernoulliNB']
+    models_to_train = ['ExtraTrees', 'XGBoost', 'LightGBM', 'CatBoost', 'HistGradientBoosting']
+    #                   'LogisticRegression', 'SGDClassifier', 'GaussianNB', 'BernoulliNB']
     
     # Tune models individually and save after each if requested
     for model_name in models_to_train:
