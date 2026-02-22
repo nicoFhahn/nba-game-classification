@@ -526,28 +526,34 @@ Calculates expected team stats PLUS advanced performance indicators:
 import polars as pl
 from typing import List
 
+"""
+Expected Team Statistics Calculator - With Realistic Minutes Distribution
+
+Key improvement: Distributes 240 total minutes across available players based on 
+their historical usage rates, respecting the 48-minute maximum per player.
+"""
+
+import polars as pl
+from typing import List
+
 
 def calculate_expected_team_stats(
         df: pl.DataFrame,
         top_n_players: int = 8
 ) -> pl.DataFrame:
     """
-    Calculate expected team statistics with advanced performance indicators.
+    Calculate expected team statistics with realistic minutes distribution.
+
+    The key improvement: Instead of using raw historical minutes, this distributes
+    exactly 240 minutes (48 min × 5 positions) across available players based on
+    their usage rates, with a 48-minute cap per player.
 
     Args:
-        df: Polars DataFrame with columns:
-            - game_id, player_id, team_id
-            - {stat}_previous_game, {stat}_7, {stat}_109 for each stat
-            - {stat}_7_std, {stat}_109_std (standard deviations)
-            - mp_7 (average minutes from last 7 games)
-            - plus_minus_109 (season average plus/minus)
-        top_n_players: Number of top players to include (default: 8)
+        df: Polars DataFrame with player-level statistics
+        top_n_players: Number of rotation players to use (default: 8)
 
     Returns:
-        Polars DataFrame with:
-        - Expected team statistics (22 features)
-        - Plus/minus player counts (6 features)
-        - Performance indicators (15+ features)
+        Polars DataFrame with expected team statistics and performance indicators
     """
 
     # Define statistics
@@ -563,8 +569,18 @@ def calculate_expected_team_stats(
     W_SEVEN = 0.35
     W_SEASON = 0.50
 
-    # Filter players with minutes data
-    df_filtered = df.filter(pl.col("mp_7").is_not_null())
+    # Keep players with either mp_7 OR mp_109
+    df_filtered = df.filter(
+        pl.col("mp_7").is_not_null() | pl.col("mp_109").is_not_null()
+    )
+
+    # Historical minutes (for usage rate calculation)
+    df_filtered = df_filtered.with_columns([
+        pl.when(pl.col("mp_7").is_not_null())
+        .then(pl.col("mp_7"))
+        .otherwise(pl.col("mp_109"))
+        .alias("historical_minutes")
+    ])
 
     # Calculate weighted stats
     weighted_exprs = [
@@ -576,26 +592,24 @@ def calculate_expected_team_stats(
         for stat in all_stats
     ]
 
-    df_weighted = df_filtered.with_columns([
-        *weighted_exprs,
-        pl.col("mp_7").alias("expected_minutes")
-    ])
+    df_weighted = df_filtered.with_columns(weighted_exprs)
 
-    # Select top N players per game by minutes
+    # Select top N players per game by historical minutes
     df_top = (
         df_weighted
-        .sort("mp_7", descending=True)
+        .sort("historical_minutes", descending=True)
         .group_by("game_id")
         .agg([
             pl.col("team_id").first(),
             pl.col("player_id").head(top_n_players),
             *[pl.col(f"{stat}_weighted").head(top_n_players) for stat in all_stats],
-            pl.col("expected_minutes").head(top_n_players),
+            pl.col("historical_minutes").head(top_n_players),
+            # Keep mp_7 and mp_109 for additional calculations
             pl.col("mp_7").head(top_n_players),
-            # Add standard deviations for consistency metrics
+            pl.col("mp_109").head(top_n_players),
+            # For consistency and form metrics
             *[pl.col(f"{stat}_7_std").head(top_n_players) for stat in
               ["pts", "off_rtg", "def_rtg", "plus_minus"]],
-            # Add recent vs season for form indicators
             *[pl.col(f"{stat}_7").head(top_n_players) for stat in
               ["pts", "off_rtg", "plus_minus"]],
             *[pl.col(f"{stat}_109").head(top_n_players) for stat in
@@ -607,24 +621,60 @@ def calculate_expected_team_stats(
     explode_cols = [
         "player_id",
         *[f"{stat}_weighted" for stat in all_stats],
-        "expected_minutes",
+        "historical_minutes",
         "mp_7",
+        "mp_109",
         "pts_7_std", "off_rtg_7_std", "def_rtg_7_std", "plus_minus_7_std",
         "pts_7", "off_rtg_7", "plus_minus_7",
         "pts_109", "off_rtg_109", "plus_minus_109",
     ]
     df_exploded = df_top.explode(explode_cols)
 
+    # CALCULATE REALISTIC EXPECTED MINUTES PER GAME
+    # Step 1: Calculate usage rates (proportion of historical minutes)
+    df_exploded = df_exploded.with_columns([
+        (pl.col("historical_minutes") / pl.col("historical_minutes").sum().over("game_id"))
+        .alias("usage_rate")
+    ])
+
+    # Step 2: Distribute 240 minutes based on usage rates
+    TOTAL_GAME_MINUTES = 240.0
+    MAX_PLAYER_MINUTES = 48.0
+
+    df_exploded = df_exploded.with_columns([
+        (pl.col("usage_rate") * TOTAL_GAME_MINUTES)
+        .clip(upper_bound=MAX_PLAYER_MINUTES)
+        .alias("expected_minutes_unconstrained")
+    ])
+
+    # Step 3: If total > 240 after capping, redistribute excess minutes
+    # (This handles cases where multiple stars would exceed 48 min)
+    df_exploded = df_exploded.with_columns([
+        pl.col("expected_minutes_unconstrained").sum().over("game_id").alias("total_unconstrained")
+    ])
+
+    df_exploded = df_exploded.with_columns([
+        pl.when(pl.col("total_unconstrained") > TOTAL_GAME_MINUTES)
+        .then(
+            # Scale down proportionally
+            pl.col("expected_minutes_unconstrained") *
+            (TOTAL_GAME_MINUTES / pl.col("total_unconstrained"))
+        )
+        .otherwise(pl.col("expected_minutes_unconstrained"))
+        .alias("expected_minutes")
+    ])
+
     # Build aggregation expressions
     agg_exprs = [
         pl.col("team_id").first(),
         pl.col("player_id").count().alias("num_players"),
+        pl.col("expected_minutes").sum().alias("total_minutes_check"),  # Should be ~240
     ]
 
-    # Counting stats: scale by expected minutes
+    # Counting stats: weighted by expected minutes / historical minutes
     for stat in counting_stats:
         agg_exprs.append(
-            (pl.col(f"{stat}_weighted") * pl.col("expected_minutes") / pl.col("mp_7"))
+            (pl.col(f"{stat}_weighted") * pl.col("expected_minutes") / pl.col("historical_minutes"))
             .sum()
             .alias(f"exp_{stat}")
         )
@@ -637,37 +687,30 @@ def calculate_expected_team_stats(
             .alias(f"exp_{stat}")
         )
 
-    # CONSISTENCY METRICS: Average variance across top players
+    # CONSISTENCY METRICS
     agg_exprs.extend([
-        # How consistent are players' scoring?
-        ((pl.col("pts_7_std") * pl.col("expected_minutes")).sum() / total_minutes)
+        ((pl.col("pts_7_std").fill_null(0) * pl.col("expected_minutes")).sum() / total_minutes)
         .alias("avg_pts_volatility"),
-
-        # How consistent is offensive performance?
-        ((pl.col("off_rtg_7_std") * pl.col("expected_minutes")).sum() / total_minutes)
+        ((pl.col("off_rtg_7_std").fill_null(0) * pl.col("expected_minutes")).sum() / total_minutes)
         .alias("avg_off_rtg_volatility"),
-
-        # How consistent is defensive performance?
-        ((pl.col("def_rtg_7_std") * pl.col("expected_minutes")).sum() / total_minutes)
+        ((pl.col("def_rtg_7_std").fill_null(0) * pl.col("expected_minutes")).sum() / total_minutes)
         .alias("avg_def_rtg_volatility"),
-
-        # How consistent is plus/minus?
-        ((pl.col("plus_minus_7_std") * pl.col("expected_minutes")).sum() / total_minutes)
+        ((pl.col("plus_minus_7_std").fill_null(0) * pl.col("expected_minutes")).sum() / total_minutes)
         .alias("avg_plus_minus_volatility"),
     ])
 
-    # FORM INDICATORS: Recent performance vs season baseline
+    # FORM INDICATORS
     agg_exprs.extend([
-        # Are players scoring more/less than their season average?
-        ((pl.col("pts_7") - pl.col("pts_109")) * pl.col("expected_minutes")).sum()
+        ((pl.col("pts_7").fill_null(pl.col("pts_109")).fill_null(0) -
+          pl.col("pts_109").fill_null(0)) * pl.col("expected_minutes")).sum()
         .alias("pts_recent_vs_season"),
 
-        # Is offensive rating trending up/down?
-        (((pl.col("off_rtg_7") - pl.col("off_rtg_109")) * pl.col("expected_minutes")).sum() / total_minutes)
+        (((pl.col("off_rtg_7").fill_null(pl.col("off_rtg_109")).fill_null(0) -
+           pl.col("off_rtg_109").fill_null(0)) * pl.col("expected_minutes")).sum() / total_minutes)
         .alias("off_rtg_recent_vs_season"),
 
-        # Is plus/minus trending up/down?
-        (((pl.col("plus_minus_7") - pl.col("plus_minus_109")) * pl.col("expected_minutes")).sum() / total_minutes)
+        (((pl.col("plus_minus_7").fill_null(pl.col("plus_minus_109")).fill_null(0) -
+           pl.col("plus_minus_109").fill_null(0)) * pl.col("expected_minutes")).sum() / total_minutes)
         .alias("plus_minus_recent_vs_season"),
     ])
 
@@ -687,6 +730,213 @@ def calculate_expected_team_stats(
     result = add_advanced_indicators(df_filtered, result)
 
     return result.sort("game_id")
+
+
+"""
+Expected Team Statistics Calculator - With Realistic Minutes Distribution
+
+Key improvement: Distributes 240 total minutes across available players based on 
+their historical usage rates, respecting the 48-minute maximum per player.
+"""
+
+import polars as pl
+from typing import List
+
+
+def calculate_expected_team_stats(
+        df: pl.DataFrame,
+        top_n_players: int = 8
+) -> pl.DataFrame:
+    """
+    Calculate expected team statistics with realistic minutes distribution.
+
+    The key improvement: Instead of using raw historical minutes, this distributes
+    exactly 240 minutes (48 min × 5 positions) across available players based on
+    their usage rates, with a 48-minute cap per player.
+
+    Args:
+        df: Polars DataFrame with player-level statistics
+        top_n_players: Number of rotation players to use (default: 8)
+
+    Returns:
+        Polars DataFrame with expected team statistics and performance indicators
+    """
+
+    # Define statistics
+    counting_stats = [
+        "fg", "fga", "fg3", "fg3a", "ft", "fta",
+        "orb", "drb", "trb", "ast", "stl", "blk", "tov", "pts"
+    ]
+    rate_stats = ["game_score", "plus_minus", "off_rtg", "def_rtg", "bpm"]
+    all_stats = counting_stats + rate_stats
+
+    # Weights: 15% last game, 35% last 7, 50% season
+    W_LAST = 0.15
+    W_SEVEN = 0.35
+    W_SEASON = 0.50
+
+    # Keep players with either mp_7 OR mp_109
+    df_filtered = df.filter(
+        pl.col("mp_7").is_not_null() | pl.col("mp_109").is_not_null()
+    )
+
+    # Historical minutes (for usage rate calculation)
+    df_filtered = df_filtered.with_columns([
+        pl.when(pl.col("mp_7").is_not_null())
+        .then(pl.col("mp_7"))
+        .otherwise(pl.col("mp_109"))
+        .alias("historical_minutes")
+    ])
+
+    # Calculate weighted stats with proper fallback logic
+    # When recent data (previous_game or _7) is missing, fall back to season average
+    weighted_exprs = [
+        (
+                W_LAST * pl.col(f"{stat}_previous_game").fill_null(pl.col(f"{stat}_109")).fill_null(0) +
+                W_SEVEN * pl.col(f"{stat}_7").fill_null(pl.col(f"{stat}_109")).fill_null(0) +
+                W_SEASON * pl.col(f"{stat}_109").fill_null(0)
+        ).alias(f"{stat}_weighted")
+        for stat in all_stats
+    ]
+
+    df_weighted = df_filtered.with_columns(weighted_exprs)
+
+    # Select top N players per game by historical minutes
+    df_top = (
+        df_weighted
+        .sort("historical_minutes", descending=True)
+        .group_by("game_id")
+        .agg([
+            pl.col("team_id").first(),
+            pl.col("player_id").head(top_n_players),
+            *[pl.col(f"{stat}_weighted").head(top_n_players) for stat in all_stats],
+            pl.col("historical_minutes").head(top_n_players),
+            # Keep mp_7 and mp_109 for additional calculations
+            pl.col("mp_7").head(top_n_players),
+            pl.col("mp_109").head(top_n_players),
+            # For consistency and form metrics
+            *[pl.col(f"{stat}_7_std").head(top_n_players) for stat in
+              ["pts", "off_rtg", "def_rtg", "plus_minus"]],
+            *[pl.col(f"{stat}_7").head(top_n_players) for stat in
+              ["pts", "off_rtg", "plus_minus"]],
+            *[pl.col(f"{stat}_109").head(top_n_players) for stat in
+              ["pts", "off_rtg", "plus_minus"]],
+        ])
+    )
+
+    # Explode to player-game level
+    explode_cols = [
+        "player_id",
+        *[f"{stat}_weighted" for stat in all_stats],
+        "historical_minutes",
+        "mp_7",
+        "mp_109",
+        "pts_7_std", "off_rtg_7_std", "def_rtg_7_std", "plus_minus_7_std",
+        "pts_7", "off_rtg_7", "plus_minus_7",
+        "pts_109", "off_rtg_109", "plus_minus_109",
+    ]
+    df_exploded = df_top.explode(explode_cols)
+
+    # CALCULATE REALISTIC EXPECTED MINUTES PER GAME
+    # Step 1: Calculate usage rates (proportion of historical minutes)
+    df_exploded = df_exploded.with_columns([
+        (pl.col("historical_minutes") / pl.col("historical_minutes").sum().over("game_id"))
+        .alias("usage_rate")
+    ])
+
+    # Step 2: Distribute 240 minutes based on usage rates
+    TOTAL_GAME_MINUTES = 240.0
+    MAX_PLAYER_MINUTES = 48.0
+
+    df_exploded = df_exploded.with_columns([
+        (pl.col("usage_rate") * TOTAL_GAME_MINUTES)
+        .clip(upper_bound=MAX_PLAYER_MINUTES)
+        .alias("expected_minutes_unconstrained")
+    ])
+
+    # Step 3: If total > 240 after capping, redistribute excess minutes
+    # (This handles cases where multiple stars would exceed 48 min)
+    df_exploded = df_exploded.with_columns([
+        pl.col("expected_minutes_unconstrained").sum().over("game_id").alias("total_unconstrained")
+    ])
+
+    df_exploded = df_exploded.with_columns([
+        pl.when(pl.col("total_unconstrained") > TOTAL_GAME_MINUTES)
+        .then(
+            # Scale down proportionally
+            pl.col("expected_minutes_unconstrained") *
+            (TOTAL_GAME_MINUTES / pl.col("total_unconstrained"))
+        )
+        .otherwise(pl.col("expected_minutes_unconstrained"))
+        .alias("expected_minutes")
+    ])
+
+    # Build aggregation expressions
+    agg_exprs = [
+        pl.col("team_id").first(),
+        pl.col("player_id").count().alias("num_players"),
+        pl.col("expected_minutes").sum().alias("total_minutes_check"),  # Should be ~240
+    ]
+
+    # Counting stats: weighted by expected minutes / historical minutes
+    for stat in counting_stats:
+        agg_exprs.append(
+            (pl.col(f"{stat}_weighted") * pl.col("expected_minutes") / pl.col("historical_minutes"))
+            .sum()
+            .alias(f"exp_{stat}")
+        )
+
+    # Rate stats: minutes-weighted average
+    total_minutes = pl.col("expected_minutes").sum()
+    for stat in rate_stats:
+        agg_exprs.append(
+            ((pl.col(f"{stat}_weighted") * pl.col("expected_minutes")).sum() / total_minutes)
+            .alias(f"exp_{stat}")
+        )
+
+    # CONSISTENCY METRICS
+    agg_exprs.extend([
+        ((pl.col("pts_7_std").fill_null(0) * pl.col("expected_minutes")).sum() / total_minutes)
+        .alias("avg_pts_volatility"),
+        ((pl.col("off_rtg_7_std").fill_null(0) * pl.col("expected_minutes")).sum() / total_minutes)
+        .alias("avg_off_rtg_volatility"),
+        ((pl.col("def_rtg_7_std").fill_null(0) * pl.col("expected_minutes")).sum() / total_minutes)
+        .alias("avg_def_rtg_volatility"),
+        ((pl.col("plus_minus_7_std").fill_null(0) * pl.col("expected_minutes")).sum() / total_minutes)
+        .alias("avg_plus_minus_volatility"),
+    ])
+
+    # FORM INDICATORS
+    agg_exprs.extend([
+        ((pl.col("pts_7").fill_null(pl.col("pts_109")).fill_null(0) -
+          pl.col("pts_109").fill_null(0)) * pl.col("expected_minutes")).sum()
+        .alias("pts_recent_vs_season"),
+
+        (((pl.col("off_rtg_7").fill_null(pl.col("off_rtg_109")).fill_null(0) -
+           pl.col("off_rtg_109").fill_null(0)) * pl.col("expected_minutes")).sum() / total_minutes)
+        .alias("off_rtg_recent_vs_season"),
+
+        (((pl.col("plus_minus_7").fill_null(pl.col("plus_minus_109")).fill_null(0) -
+           pl.col("plus_minus_109").fill_null(0)) * pl.col("expected_minutes")).sum() / total_minutes)
+        .alias("plus_minus_recent_vs_season"),
+    ])
+
+    result = df_exploded.group_by("game_id").agg(agg_exprs)
+
+    # Calculate shooting percentages
+    result = result.with_columns([
+        (pl.col("exp_fg") / pl.col("exp_fga")).alias("exp_fg_pct"),
+        (pl.col("exp_fg3") / pl.col("exp_fg3a")).alias("exp_fg3_pct"),
+        (pl.col("exp_ft") / pl.col("exp_fta")).alias("exp_ft_pct")
+    ])
+
+    # Add plus/minus player counts
+    result = add_plus_minus_counts(df_filtered, result)
+
+    # Add advanced performance indicators
+    result = add_advanced_indicators(df_filtered, result)
+
+    return result.sort("game_id").drop(["total_minutes_check", "num_players"])
 
 
 def add_plus_minus_counts(
@@ -717,55 +967,49 @@ def add_advanced_indicators(
         df_filtered: pl.DataFrame,
         result: pl.DataFrame
 ) -> pl.DataFrame:
-    """
-    Add advanced performance indicators:
-    - Minutes concentration (reliance on few players)
-    - Depth quality (average quality of bench players)
-    - Experience/continuity (stability of rotation)
-    - Momentum indicators
-    """
+    """Add advanced performance indicators."""
 
-    # Calculate per-game indicators
-    advanced = df_filtered.group_by("game_id").agg([
+    # Use historical minutes for these calculations
+    df_with_minutes = df_filtered.with_columns([
+        pl.when(pl.col("mp_7").is_not_null())
+        .then(pl.col("mp_7"))
+        .otherwise(pl.col("mp_109"))
+        .alias("minutes_for_calc")
+    ])
+
+    advanced = df_with_minutes.group_by("game_id").agg([
         pl.col("team_id").first(),
 
         # MINUTES CONCENTRATION
-        # Gini coefficient approximation: how evenly distributed are minutes?
-        # Lower = more balanced rotation, Higher = star-dependent
-        (pl.col("mp_7").std() / (pl.col("mp_7").mean() + 0.01))
+        (pl.col("minutes_for_calc").std() / (pl.col("minutes_for_calc").mean() + 0.01))
         .alias("minutes_concentration"),
 
-        # Top 3 players' share of total minutes
-        (pl.col("mp_7").top_k(3).sum() / pl.col("mp_7").sum())
+        (pl.col("minutes_for_calc").top_k(3).sum() / pl.col("minutes_for_calc").sum())
         .alias("top3_minutes_share"),
 
         # DEPTH QUALITY
-        # Average plus/minus of players outside top 5
-        (pl.when(pl.col("mp_7").rank(descending=True) > 5)
+        (pl.when(pl.col("minutes_for_calc").rank(descending=True) > 5)
          .then(pl.col("plus_minus_109"))
          .otherwise(None)
          .mean())
         .alias("bench_avg_plus_minus"),
 
-        # Number of rotation players (>10 min avg)
-        (pl.col("mp_7") >= 10.0).sum().alias("rotation_size"),
+        (pl.col("minutes_for_calc") >= 10.0).sum().alias("rotation_size"),
 
-        # MOMENTUM/FORM INDICATORS
-        # How many players are hot? (recent > season avg)
-        ((pl.col("pts_7").fill_null(0) > pl.col("pts_109").fill_null(0)).sum())
+        # MOMENTUM/FORM
+        ((pl.col("pts_7").fill_null(pl.col("pts_109")) > pl.col("pts_109").fill_null(0)).sum())
         .alias("players_scoring_hot"),
 
-        # How many players trending positive in plus/minus?
-        ((pl.col("plus_minus_7").fill_null(-999) > pl.col("plus_minus_109").fill_null(-999)).sum())
+        ((pl.col("plus_minus_7").fill_null(pl.col("plus_minus_109")) >
+          pl.col("plus_minus_109").fill_null(-999)).sum())
         .alias("players_trending_positive"),
 
         # CONSISTENCY/RISK
-        # Average consistency (inverse of std) across all available players
-        (1.0 / (pl.col("pts_7_std").fill_null(99).mean() + 0.1))
+        (1.0 / (pl.col("pts_7_std").fill_null(pl.col("pts_109_std")).fill_null(99).mean() + 0.1))
         .alias("team_consistency_score"),
 
-        # Percentage of players with high volatility (std > mean)
-        ((pl.col("pts_7_std").fill_null(0) > pl.col("pts_7").fill_null(0)).sum() / pl.count())
+        ((pl.col("pts_7_std").fill_null(pl.col("pts_109_std")).fill_null(0) >
+          pl.col("pts_7").fill_null(pl.col("pts_109")).fill_null(0)).sum() / pl.count())
         .alias("high_volatility_player_pct"),
     ])
 
@@ -805,6 +1049,8 @@ def prepare_home_away_features(
     ])
 
     return home_game.join(away_game, on="game_id")
+
+
 
 def player_season_stats(df, window_sizes = [7, 109]):
     absolute_columns = [

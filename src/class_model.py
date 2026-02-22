@@ -1,6 +1,6 @@
 import marimo
 
-__generated_with = "0.19.7"
+__generated_with = "0.19.11"
 app = marimo.App(width="medium")
 
 
@@ -25,7 +25,24 @@ def _():
     from pathlib import Path
     import ml_pipeline
     from google.cloud import secretmanager
-    return create_client, json, load_pipeline, pl, secretmanager
+    import warnings
+
+    # Suppress sklearn warnings
+    warnings.filterwarnings('ignore', category=UserWarning, module='sklearn')
+
+    # Suppress LightGBM feature name warnings
+    warnings.filterwarnings('ignore', message='.*does not have valid feature names.*')
+
+    return (
+        create_client,
+        date,
+        importlib,
+        json,
+        load_pipeline,
+        ml_helpers,
+        pl,
+        secretmanager,
+    )
 
 
 @app.cell
@@ -41,27 +58,27 @@ def _(create_client, json, secretmanager):
     return (supabase,)
 
 
-app._unparsable_cell(
-    r"""
+@app.cell
+def _(date, importlib, ml_helpers, supabase):
     importlib.reload(ml_helpers)
-    cutoff_dates = [date(2026, 1, 1), date(2026, 2, 1)]
+    cutoff_dates = [date(2026, 2, 1)]
     for c in cutoff_dates:
         pipe = ml_helpers.run_pipeline(
             supabase,
             cutoff_date = c,
-            use_weights=True,
+            use_weights= False,
             run_fs = True,
-            n_trials=200,
-            max_estimators=1000,
-            n_jobs_optuna=4,
+            n_trials = 300,
+            max_estimators=1500,
+            n_jobs_optuna=6,
             output_dir=f"ensemble_{c.strftime('%Y%m%d')}",
-            ['ExtraTrees', 'XGBoost', 'LightGBM', 'CatBoost', 'LogisticRegression']
+            random_state=2352,
+            use_ensemble=True
         )
     # need to verify data is in correct order
     # 0.698
-    """,
-    name="_"
-)
+    # antigravity project and ask it to improve my feature generation
+    return
 
 
 @app.cell

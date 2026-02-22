@@ -5,6 +5,7 @@ import shap
 from typing import List, Dict, Tuple, Literal
 from sklearn.model_selection import KFold
 import warnings
+
 warnings.filterwarnings('ignore')
 
 
@@ -13,18 +14,19 @@ class LGBMStepwiseFeatureSelector:
     Stepwise feature selection for LightGBM with cross-validation.
     Reduces features by 10% at each step using either built-in importance or SHAP values.
     """
-    
+
     def __init__(
-        self,
-        importance_type: Literal['gain', 'split', 'shap'] = 'gain',
-        n_folds: int = 5,
-        random_state: int = 234,
-        verbose: bool = True,
-        metric=None
+            self,
+            importance_type: Literal['gain', 'split', 'shap'] = 'gain',
+            n_folds: int = 5,
+            random_state: int = 234,
+            verbose: bool = True,
+            metric=None,
+            use_ensemble: bool = False
     ):
         """
         Initialize the feature selector.
-        
+
         Parameters:
         -----------
         importance_type : str
@@ -44,6 +46,10 @@ class LGBMStepwiseFeatureSelector:
             If None, uses accuracy_score by default.
             For metrics that need probabilities (like roc_auc_score), use y_pred as probabilities.
             For metrics that need binary predictions (like accuracy_score, f1_score), y_pred will be binarized.
+        use_ensemble : bool
+            If True, uses an ensemble of tree-based models (LightGBM, XGBoost, CatBoost)
+            to calculate feature importance. The importance scores are averaged across all models.
+            If False, uses only LightGBM (default).
         """
         self.importance_type = importance_type
         self.n_folds = n_folds
@@ -53,10 +59,11 @@ class LGBMStepwiseFeatureSelector:
         self.metric_name = None
         self.higher_is_better = True
         self.needs_proba = False
+        self.use_ensemble = use_ensemble
         self.history_ = []
         self.best_features_ = None
         self.best_score_ = None
-        
+
         # Set metric if not provided
         if self.metric is None:
             from sklearn.metrics import accuracy_score
@@ -67,36 +74,39 @@ class LGBMStepwiseFeatureSelector:
         else:
             # Try to infer metric properties
             self.metric_name = getattr(metric, '__name__', 'custom_metric')
-            
+
             # Determine if metric needs probabilities or binary predictions
             # Common probability-based metrics
-            proba_metrics = ['roc_auc_score', 'log_loss', 'brier_score_loss', 
-                           'average_precision_score']
+            proba_metrics = ['roc_auc_score', 'log_loss', 'brier_score_loss',
+                             'average_precision_score', 'roc_auc_score_ovr',
+                             'roc_auc_score_ovo']
             self.needs_proba = self.metric_name in proba_metrics
-            
+
             # Determine if higher is better
             # Metrics where lower is better
             lower_is_better_metrics = ['log_loss', 'brier_score_loss', 'mean_squared_error',
-                                      'mean_absolute_error', 'mean_absolute_percentage_error']
+                                       'mean_absolute_error', 'mean_absolute_percentage_error',
+                                       'median_absolute_error', 'max_error', 'hinge_loss',
+                                       'hamming_loss', 'zero_one_loss']
             self.higher_is_better = self.metric_name not in lower_is_better_metrics
-        
+
     def _lgbm_metric_wrapper(self, y_pred: np.ndarray, dtrain: lgbm.Dataset) -> Tuple[str, float, bool]:
         """
         Wrapper to use sklearn metric as LightGBM custom metric.
-        
+
         Parameters:
         -----------
         y_pred : np.ndarray
             Predicted probabilities from LightGBM
         dtrain : lgbm.Dataset
             Training dataset containing true labels
-            
+
         Returns:
         --------
         tuple : (metric_name, metric_value, is_higher_better)
         """
         y_true = dtrain.get_label()
-        
+
         # Prepare predictions based on metric requirements
         if self.needs_proba:
             # Use probabilities directly for metrics like roc_auc_score
@@ -104,7 +114,7 @@ class LGBMStepwiseFeatureSelector:
         else:
             # Binarize predictions for metrics like accuracy_score, f1_score
             y_pred_for_metric = (y_pred > 0.5).astype(int)
-        
+
         # Calculate metric
         try:
             score = self.metric(y_true, y_pred_for_metric)
@@ -112,82 +122,292 @@ class LGBMStepwiseFeatureSelector:
             if self.verbose:
                 print(f"Warning: Error calculating metric: {e}")
             score = 0.0
-        
+
         return self.metric_name, score, self.higher_is_better
-    
+
+    def _train_xgboost_model(self, X_train: np.ndarray, y_train: np.ndarray) -> 'xgb.Booster':
+        """
+        Train an XGBoost model.
+
+        Parameters:
+        -----------
+        X_train : np.ndarray
+            Training features
+        y_train : np.ndarray
+            Training labels
+
+        Returns:
+        --------
+        xgb.Booster : Trained XGBoost model
+        """
+        try:
+            import xgboost as xgb
+        except ImportError:
+            raise ImportError("XGBoost is required when use_ensemble=True. Install it with: pip install xgboost")
+
+        dtrain = xgb.DMatrix(X_train, label=y_train)
+
+        params = {
+            'objective': 'binary:logistic',
+            'eval_metric': 'logloss',
+            'seed': self.random_state,
+            'verbosity': 0
+        }
+
+        model = xgb.train(params, dtrain, num_boost_round=100)
+        return model
+
+    def _train_catboost_model(self, X_train: np.ndarray, y_train: np.ndarray) -> 'CatBoost':
+        """
+        Train a CatBoost model.
+
+        Parameters:
+        -----------
+        X_train : np.ndarray
+            Training features
+        y_train : np.ndarray
+            Training labels
+
+        Returns:
+        --------
+        CatBoost : Trained CatBoost model
+        """
+        try:
+            from catboost import CatBoostClassifier
+        except ImportError:
+            raise ImportError("CatBoost is required when use_ensemble=True. Install it with: pip install catboost")
+
+        model = CatBoostClassifier(
+            iterations=100,
+            random_state=self.random_state,
+            verbose=False,
+            allow_writing_files=False
+        )
+
+        model.fit(X_train, y_train)
+        return model
+
+    def _train_lightgbm_model(self, X_train: np.ndarray, y_train: np.ndarray,
+                              X_val: np.ndarray = None, y_val: np.ndarray = None) -> lgbm.Booster:
+        """
+        Train a LightGBM model.
+
+        Parameters:
+        -----------
+        X_train : np.ndarray
+            Training features
+        y_train : np.ndarray
+            Training labels
+        X_val : np.ndarray, optional
+            Validation features
+        y_val : np.ndarray, optional
+            Validation labels
+
+        Returns:
+        --------
+        lgbm.Booster : Trained LightGBM model
+        """
+        dtrain = lgbm.Dataset(X_train, label=y_train)
+
+        params = {
+            "objective": "binary",
+            "metric": None,
+            "first_metric_only": True,
+            "verbose": -1,
+            "random_state": self.random_state
+        }
+
+        if X_val is not None and y_val is not None:
+            dval = lgbm.Dataset(X_val, label=y_val, reference=dtrain)
+            model = lgbm.train(params, train_set=dtrain, valid_sets=[dval], feval=self._lgbm_metric_wrapper)
+        else:
+            model = lgbm.train(params, train_set=dtrain, feval=self._lgbm_metric_wrapper)
+
+        return model
+
     def _get_feature_importance(
-        self,
-        models: List[lgbm.Booster],
-        X: pd.DataFrame,
-        y: np.ndarray,
-        train_indices: List[np.ndarray]
+            self,
+            models: List,
+            X: pd.DataFrame,
+            y: np.ndarray,
+            train_indices: List[np.ndarray]
     ) -> pd.Series:
         """
         Calculate feature importance using the specified method.
-        
+
         Parameters:
         -----------
-        models : List[lgbm.Booster]
-            Trained models from each fold
+        models : List
+            Trained models from each fold. If use_ensemble=True, this is a list of dicts
+            containing {'lgbm': model, 'xgb': model, 'catboost': model}.
+            If use_ensemble=False, this is a list of LightGBM models.
         X : pd.DataFrame
             Feature matrix
         y : np.ndarray
             Target variable
         train_indices : List[np.ndarray]
             Training indices for each fold (needed for SHAP)
-            
+
         Returns:
         --------
-        pd.Series : Feature importance scores (averaged across folds)
+        pd.Series : Feature importance scores (averaged across folds and models)
         """
         feature_names = X.columns.tolist()
-        
+
         if self.importance_type in ['gain', 'split']:
-            # Use LightGBM's built-in importance
+            # Use built-in importance
             importance_scores = []
-            for model in models:
-                imp = model.feature_importance(importance_type=self.importance_type)
-                importance_scores.append(imp)
-            
+
+            for fold_models in models:
+                if self.use_ensemble:
+                    # Average importance across all three models
+                    lgbm_imp = fold_models['lgbm'].feature_importance(importance_type=self.importance_type)
+
+                    # XGBoost importance
+                    xgb_imp_dict = fold_models['xgb'].get_score(importance_type=self.importance_type)
+                    xgb_imp = np.array([xgb_imp_dict.get(f'f{i}', 0) for i in range(len(feature_names))])
+
+                    # CatBoost importance
+                    catboost_imp = np.array(fold_models['catboost'].get_feature_importance())
+
+                    # Replace any NaN or inf values with 0
+                    lgbm_imp = np.nan_to_num(lgbm_imp, nan=0.0, posinf=0.0, neginf=0.0)
+                    xgb_imp = np.nan_to_num(xgb_imp, nan=0.0, posinf=0.0, neginf=0.0)
+                    catboost_imp = np.nan_to_num(catboost_imp, nan=0.0, posinf=0.0, neginf=0.0)
+
+                    # Average across models
+                    # Normalize each to 0-1 range first
+                    lgbm_sum = lgbm_imp.sum()
+                    xgb_sum = xgb_imp.sum()
+                    catboost_sum = catboost_imp.sum()
+
+                    # Avoid division by zero - use 1.0 if sum is 0
+                    lgbm_imp_norm = lgbm_imp / lgbm_sum if lgbm_sum > 1e-10 else np.zeros_like(lgbm_imp)
+                    xgb_imp_norm = xgb_imp / xgb_sum if xgb_sum > 1e-10 else np.zeros_like(xgb_imp)
+                    catboost_imp_norm = catboost_imp / catboost_sum if catboost_sum > 1e-10 else np.zeros_like(
+                        catboost_imp)
+
+                    # Average normalized importances
+                    ensemble_imp = (lgbm_imp_norm + xgb_imp_norm + catboost_imp_norm) / 3
+
+                    # Final safety check
+                    ensemble_imp = np.nan_to_num(ensemble_imp, nan=0.0, posinf=0.0, neginf=0.0)
+
+                    importance_scores.append(ensemble_imp)
+                else:
+                    # Just LightGBM
+                    imp = fold_models.feature_importance(importance_type=self.importance_type)
+                    # Replace any NaN or inf values with 0
+                    imp = np.nan_to_num(imp, nan=0.0, posinf=0.0, neginf=0.0)
+                    importance_scores.append(imp)
+
             # Average across folds
             avg_importance = np.mean(importance_scores, axis=0)
+            # Final safety check
+            avg_importance = np.nan_to_num(avg_importance, nan=0.0, posinf=0.0, neginf=0.0)
             return pd.Series(avg_importance, index=feature_names)
-        
+
         elif self.importance_type == 'shap':
             # Use SHAP values
             shap_values_list = []
-            
-            for model, train_idx in zip(models, train_indices):
+
+            for fold_idx, (fold_models, train_idx) in enumerate(zip(models, train_indices)):
                 X_train_fold = X.iloc[train_idx]
-                
-                # Calculate SHAP values for this fold
-                explainer = shap.TreeExplainer(model)
-                shap_values = explainer.shap_values(X_train_fold)
-                
-                # For binary classification, shap_values might be a list
-                if isinstance(shap_values, list):
-                    shap_values = shap_values[1]  # Use positive class
-                
-                # Get mean absolute SHAP value for each feature
-                mean_abs_shap = np.abs(shap_values).mean(axis=0)
-                shap_values_list.append(mean_abs_shap)
-            
+
+                if self.use_ensemble:
+                    # Calculate SHAP for all three models and average
+
+                    # LightGBM SHAP
+                    explainer_lgbm = shap.TreeExplainer(fold_models['lgbm'])
+                    shap_lgbm = explainer_lgbm.shap_values(X_train_fold)
+                    if isinstance(shap_lgbm, list):
+                        shap_lgbm = shap_lgbm[1]
+
+                    # XGBoost SHAP - Fix compatibility issue with base_score
+                    try:
+                        # Try standard SHAP explainer
+                        explainer_xgb = shap.TreeExplainer(fold_models['xgb'])
+                        shap_xgb = explainer_xgb.shap_values(X_train_fold)
+                    except (ValueError, AttributeError) as e:
+                        # Fallback: Use XGBoost's predict_contrib method
+                        if self.verbose:
+                            print(f"    Warning: SHAP TreeExplainer failed for XGBoost, using predict_contrib fallback")
+                        import xgboost as xgb
+                        dmatrix = xgb.DMatrix(X_train_fold)
+                        # Get SHAP contributions directly from XGBoost
+                        shap_xgb = fold_models['xgb'].predict(dmatrix, pred_contribs=True)
+                        # Remove bias term (last column)
+                        shap_xgb = shap_xgb[:, :-1]
+
+                    if isinstance(shap_xgb, list):
+                        shap_xgb = shap_xgb[1]
+
+                    # CatBoost SHAP
+                    explainer_cat = shap.TreeExplainer(fold_models['catboost'])
+                    shap_cat = explainer_cat.shap_values(X_train_fold)
+                    if isinstance(shap_cat, list):
+                        shap_cat = shap_cat[1]
+
+                    # Average SHAP values across models
+                    mean_abs_shap_lgbm = np.abs(shap_lgbm).mean(axis=0)
+                    mean_abs_shap_xgb = np.abs(shap_xgb).mean(axis=0)
+                    mean_abs_shap_cat = np.abs(shap_cat).mean(axis=0)
+
+                    # Replace any NaN or inf values with 0
+                    mean_abs_shap_lgbm = np.nan_to_num(mean_abs_shap_lgbm, nan=0.0, posinf=0.0, neginf=0.0)
+                    mean_abs_shap_xgb = np.nan_to_num(mean_abs_shap_xgb, nan=0.0, posinf=0.0, neginf=0.0)
+                    mean_abs_shap_cat = np.nan_to_num(mean_abs_shap_cat, nan=0.0, posinf=0.0, neginf=0.0)
+
+                    # Normalize and average
+                    lgbm_sum = mean_abs_shap_lgbm.sum()
+                    xgb_sum = mean_abs_shap_xgb.sum()
+                    cat_sum = mean_abs_shap_cat.sum()
+
+                    # Avoid division by zero
+                    mean_abs_shap_lgbm_norm = mean_abs_shap_lgbm / lgbm_sum if lgbm_sum > 1e-10 else np.zeros_like(
+                        mean_abs_shap_lgbm)
+                    mean_abs_shap_xgb_norm = mean_abs_shap_xgb / xgb_sum if xgb_sum > 1e-10 else np.zeros_like(
+                        mean_abs_shap_xgb)
+                    mean_abs_shap_cat_norm = mean_abs_shap_cat / cat_sum if cat_sum > 1e-10 else np.zeros_like(
+                        mean_abs_shap_cat)
+
+                    ensemble_shap = (mean_abs_shap_lgbm_norm + mean_abs_shap_xgb_norm + mean_abs_shap_cat_norm) / 3
+
+                    # Final safety check
+                    ensemble_shap = np.nan_to_num(ensemble_shap, nan=0.0, posinf=0.0, neginf=0.0)
+
+                    shap_values_list.append(ensemble_shap)
+                else:
+                    # Just LightGBM SHAP
+                    explainer = shap.TreeExplainer(fold_models)
+                    shap_values = explainer.shap_values(X_train_fold)
+
+                    if isinstance(shap_values, list):
+                        shap_values = shap_values[1]
+
+                    mean_abs_shap = np.abs(shap_values).mean(axis=0)
+                    # Replace any NaN or inf values with 0
+                    mean_abs_shap = np.nan_to_num(mean_abs_shap, nan=0.0, posinf=0.0, neginf=0.0)
+                    shap_values_list.append(mean_abs_shap)
+
             # Average across folds
             avg_shap = np.mean(shap_values_list, axis=0)
+            # Final safety check
+            avg_shap = np.nan_to_num(avg_shap, nan=0.0, posinf=0.0, neginf=0.0)
             return pd.Series(avg_shap, index=feature_names)
-        
+
         else:
             raise ValueError(f"Unknown importance_type: {self.importance_type}")
-    
+
     def _evaluate_features(
-        self,
-        X: pd.DataFrame,
-        y: np.ndarray,
-        features: List[str]
+            self,
+            X: pd.DataFrame,
+            y: np.ndarray,
+            features: List[str]
     ) -> Dict:
         """
         Evaluate a set of features using cross-validation.
-        
+
         Parameters:
         -----------
         X : pd.DataFrame
@@ -196,57 +416,106 @@ class LGBMStepwiseFeatureSelector:
             Target variable
         features : List[str]
             Features to evaluate
-            
+
         Returns:
         --------
         dict : Dictionary containing CV scores, models, and indices
         """
         X_subset = X[features]
-        
+
         kfold = KFold(n_splits=self.n_folds, shuffle=True, random_state=self.random_state)
-        
+
         cv_scores = []
         models = []
         train_indices = []
-        
+
         for fold_idx, (train_idx, val_idx) in enumerate(kfold.split(X_subset)):
             X_train, X_val = X_subset.iloc[train_idx], X_subset.iloc[val_idx]
             y_train, y_val = y[train_idx], y[val_idx]
-            
-            # Create LightGBM datasets
-            dtrain = lgbm.Dataset(X_train, label=y_train)
-            dval = lgbm.Dataset(X_val, label=y_val, reference=dtrain)
-            
-            # Train model
-            model = lgbm.train(
-                params={
-                    "objective": "binary",
-                    "metric": None,
-                    "first_metric_only": True,
-                    "verbose": -1,
-                    "random_state": self.random_state
-                },
-                train_set=dtrain,
-                valid_sets=[dval],
-                feval=self._lgbm_metric_wrapper
-            )
-            
-            # Evaluate on validation set using the sklearn metric
-            y_pred = model.predict(X_val)
-            
+
+            if self.use_ensemble:
+                # Train all three models
+                if self.verbose and fold_idx == 0:
+                    print(f"    Training ensemble (LightGBM + XGBoost + CatBoost)...")
+
+                # Train LightGBM
+                lgbm_model = self._train_lightgbm_model(
+                    X_train.values, y_train, X_val.values, y_val
+                )
+
+                # Train XGBoost
+                xgb_model = self._train_xgboost_model(X_train.values, y_train)
+
+                # Train CatBoost
+                catboost_model = self._train_catboost_model(X_train.values, y_train)
+
+                # Store all models
+                fold_models = {
+                    'lgbm': lgbm_model,
+                    'xgb': xgb_model,
+                    'catboost': catboost_model
+                }
+
+                # Ensemble predictions - average probabilities from all three models
+                y_pred_lgbm = lgbm_model.predict(X_val.values)
+                y_pred_xgb = xgb_model.predict(
+                    __import__('xgboost').DMatrix(X_val.values)
+                )
+                y_pred_catboost = catboost_model.predict(X_val.values, prediction_type='Probability')[:, 1]
+
+                # Replace any NaN or inf values with 0.5 (neutral prediction)
+                y_pred_lgbm = np.nan_to_num(y_pred_lgbm, nan=0.5, posinf=1.0, neginf=0.0)
+                y_pred_xgb = np.nan_to_num(y_pred_xgb, nan=0.5, posinf=1.0, neginf=0.0)
+                y_pred_catboost = np.nan_to_num(y_pred_catboost, nan=0.5, posinf=1.0, neginf=0.0)
+
+                # Clip predictions to valid probability range [0, 1]
+                y_pred_lgbm = np.clip(y_pred_lgbm, 0.0, 1.0)
+                y_pred_xgb = np.clip(y_pred_xgb, 0.0, 1.0)
+                y_pred_catboost = np.clip(y_pred_catboost, 0.0, 1.0)
+
+                # Average predictions
+                y_pred = (y_pred_lgbm + y_pred_xgb + y_pred_catboost) / 3
+
+            else:
+                # Train only LightGBM
+                lgbm_model = self._train_lightgbm_model(
+                    X_train.values, y_train, X_val.values, y_val
+                )
+
+                fold_models = lgbm_model
+
+                # Get predictions
+                y_pred = lgbm_model.predict(X_val.values)
+
+                # Replace any NaN or inf values with 0.5 (neutral prediction)
+                y_pred = np.nan_to_num(y_pred, nan=0.5, posinf=1.0, neginf=0.0)
+
+                # Clip predictions to valid probability range [0, 1]
+                y_pred = np.clip(y_pred, 0.0, 1.0)
+
             # Prepare predictions based on metric requirements
             if self.needs_proba:
                 y_pred_for_metric = y_pred
             else:
                 y_pred_for_metric = (y_pred > 0.5).astype(int)
-            
+
             # Calculate metric
-            score = self.metric(y_val, y_pred_for_metric)
-            
+            try:
+                score = self.metric(y_val, y_pred_for_metric)
+                # Ensure score is not NaN or inf
+                if not np.isfinite(score):
+                    if self.verbose:
+                        print(f"    Warning: Non-finite score detected in fold {fold_idx}, using 0.0")
+                    score = 0.0
+            except Exception as e:
+                if self.verbose:
+                    print(f"    Warning: Error calculating metric in fold {fold_idx}: {e}, using 0.0")
+                score = 0.0
+
             cv_scores.append(score)
-            models.append(model)
+            models.append(fold_models)
             train_indices.append(train_idx)
-        
+
         return {
             'scores': cv_scores,
             'mean_score': np.mean(cv_scores),
@@ -254,19 +523,19 @@ class LGBMStepwiseFeatureSelector:
             'models': models,
             'train_indices': train_indices
         }
-    
+
     def fit(self, X, y) -> 'LGBMStepwiseFeatureSelector':
         """
         Perform stepwise feature selection.
-        
+
         Parameters:
         -----------
         X : pd.DataFrame or np.ndarray
-            Feature matrix. If numpy array, will be converted to DataFrame 
+            Feature matrix. If numpy array, will be converted to DataFrame
             with default feature names (feature_0, feature_1, ...)
         y : np.ndarray or array-like
             Target variable (binary). Will be converted to 1D numpy array.
-            
+
         Returns:
         --------
         self : Returns the instance itself
@@ -282,34 +551,35 @@ class LGBMStepwiseFeatureSelector:
                     print(f"Converting numpy array to DataFrame with default feature names")
             else:
                 raise ValueError("X must be a pandas DataFrame or numpy array")
-        
+
         # Convert y to numpy array and ensure it's 1D
         if not isinstance(y, np.ndarray):
             y = np.array(y)
-        
+
         # Ensure y is 1D
         if len(y.shape) > 1:
             y = y.ravel()
-        
+
         current_features = X.columns.tolist()
         step = 0
-        
+
         if self.verbose:
             print(f"Starting stepwise feature selection with {len(current_features)} features")
             print(f"Importance method: {self.importance_type}")
+            print(f"Model: {'Ensemble (LightGBM + XGBoost + CatBoost)' if self.use_ensemble else 'LightGBM'}")
             print(f"Optimization metric: {self.metric_name}")
             print(f"Cross-validation folds: {self.n_folds}")
             print("=" * 80)
-        
+
         while len(current_features) > 1:
             step += 1
-            
+
             if self.verbose:
                 print(f"\nStep {step}: Evaluating {len(current_features)} features")
-            
+
             # Evaluate current feature set
             results = self._evaluate_features(X, y, current_features)
-            
+
             # Record history
             self.history_.append({
                 'step': step,
@@ -319,10 +589,10 @@ class LGBMStepwiseFeatureSelector:
                 'std_score': results['std_score'],
                 'cv_scores': results['scores']
             })
-            
+
             if self.verbose:
                 print(f"  Mean CV {self.metric_name}: {results['mean_score']:.4f} (+/- {results['std_score']:.4f})")
-            
+
             # Update best features if this is the best score so far
             if self.best_score_ is None:
                 self.best_score_ = results['mean_score']
@@ -331,16 +601,15 @@ class LGBMStepwiseFeatureSelector:
                     print(f"  *** New best score! ***")
             else:
                 # Check if current score is better based on metric direction
-                is_better = (results['mean_score'] > self.best_score_ if self.higher_is_better 
-                           else results['mean_score'] < self.best_score_)
-                
+                is_better = (results['mean_score'] > self.best_score_ if self.higher_is_better
+                             else results['mean_score'] < self.best_score_)
+
                 if is_better:
                     self.best_score_ = results['mean_score']
                     self.best_features_ = current_features.copy()
                     if self.verbose:
                         print(f"  *** New best score! ***")
-            
-            
+
             # Calculate feature importance
             importance = self._get_feature_importance(
                 results['models'],
@@ -348,23 +617,23 @@ class LGBMStepwiseFeatureSelector:
                 y,
                 results['train_indices']
             )
-            
+
             # Calculate number of features to remove (10% of current features, at least 1)
             n_to_remove = max(1, int(len(current_features) * 0.1))
-            
+
             # If removing 10% would leave us with 0 features, just remove enough to leave 1
             if len(current_features) - n_to_remove < 1:
                 n_to_remove = len(current_features) - 1
-            
+
             # Get least important features
             least_important = importance.nsmallest(n_to_remove).index.tolist()
-            
+
             if self.verbose:
                 print(f"  Removing {n_to_remove} least important features: {least_important}")
-            
+
             # Remove least important features
             current_features = [f for f in current_features if f not in least_important]
-            
+
             # Break if we're down to 1 feature
             if len(current_features) <= 1:
                 # Evaluate the final feature
@@ -380,22 +649,23 @@ class LGBMStepwiseFeatureSelector:
                     })
                     if self.verbose:
                         print(f"\nFinal step: 1 feature remaining")
-                        print(f"  Mean CV {self.metric_name}: {final_results['mean_score']:.4f} (+/- {final_results['std_score']:.4f})")
+                        print(
+                            f"  Mean CV {self.metric_name}: {final_results['mean_score']:.4f} (+/- {final_results['std_score']:.4f})")
                 break
-        
+
         if self.verbose:
             print("\n" + "=" * 80)
             print(f"Feature selection complete!")
             print(f"Best score: {self.best_score_:.4f}")
             print(f"Best number of features: {len(self.best_features_)}")
             print(f"Best features: {self.best_features_}")
-        
+
         return self
-    
+
     def get_selection_summary(self) -> pd.DataFrame:
         """
         Get a summary DataFrame of the selection process.
-        
+
         Returns:
         --------
         pd.DataFrame : Summary of each step
@@ -410,7 +680,7 @@ class LGBMStepwiseFeatureSelector:
             for h in self.history_
         ])
         return summary
-    
+
     def plot_selection_curve(self):
         """
         Plot the feature selection curve showing metric score vs number of features.
@@ -421,12 +691,12 @@ class LGBMStepwiseFeatureSelector:
         except ImportError:
             print("matplotlib is required for plotting. Install it with: pip install matplotlib")
             return
-        
+
         summary = self.get_selection_summary()
-        
+
         metric_col = f'mean_{self.metric_name}'
         std_col = f'std_{self.metric_name}'
-        
+
         plt.figure(figsize=(10, 6))
         plt.errorbar(
             summary['n_features'],
@@ -436,8 +706,8 @@ class LGBMStepwiseFeatureSelector:
             capsize=5,
             capthick=2
         )
-        plt.axvline(x=len(self.best_features_), color='r', linestyle='--', 
-                   label=f'Best: {len(self.best_features_)} features')
+        plt.axvline(x=len(self.best_features_), color='r', linestyle='--',
+                    label=f'Best: {len(self.best_features_)} features')
         plt.xlabel('Number of Features')
         plt.ylabel(f'Cross-Validation {self.metric_name.replace("_", " ").title()}')
         plt.title(f'Stepwise Feature Selection ({self.importance_type} importance)')
@@ -452,7 +722,7 @@ if __name__ == "__main__":
     # Example with synthetic data (replace with your NBA data)
     from sklearn.datasets import make_classification
     from sklearn.metrics import accuracy_score, f1_score, roc_auc_score, precision_score
-    
+
     # Create synthetic dataset
     X_array, y = make_classification(
         n_samples=1000,
@@ -461,13 +731,13 @@ if __name__ == "__main__":
         n_redundant=10,
         random_state=234
     )
-    
+
     # Convert to DataFrame with feature names
     X = pd.DataFrame(
         X_array,
         columns=[f'feature_{i}' for i in range(X_array.shape[1])]
     )
-    
+
     print("Example 1: Using accuracy_score (default)")
     print("-" * 80)
     selector_accuracy = LGBMStepwiseFeatureSelector(
@@ -478,10 +748,10 @@ if __name__ == "__main__":
         metric=accuracy_score  # or leave as None for default
     )
     selector_accuracy.fit(X, y)
-    
+
     print("\n\nSelection Summary:")
     print(selector_accuracy.get_selection_summary())
-    
+
     print("\n" + "=" * 80)
     print("\nExample 2: Using F1 Score")
     print("-" * 80)
@@ -493,10 +763,10 @@ if __name__ == "__main__":
         metric=f1_score
     )
     selector_f1.fit(X, y)
-    
+
     print("\n\nSelection Summary:")
     print(selector_f1.get_selection_summary())
-    
+
     print("\n" + "=" * 80)
     print("\nExample 3: Using ROC AUC Score")
     print("-" * 80)
@@ -508,10 +778,10 @@ if __name__ == "__main__":
         metric=roc_auc_score  # This metric needs probabilities
     )
     selector_auc.fit(X, y)
-    
+
     print("\n\nSelection Summary:")
     print(selector_auc.get_selection_summary())
-    
+
     print("\n" + "=" * 80)
     print("\nExample 4: Using Precision Score")
     print("-" * 80)
@@ -523,19 +793,18 @@ if __name__ == "__main__":
         metric=precision_score
     )
     selector_precision.fit(X, y)
-    
+
     print("\n\nSelection Summary:")
     print(selector_precision.get_selection_summary())
-    
-    
+
     print("\n" + "=" * 80)
     print("\nExample 5: Using numpy arrays as input with custom metric")
     print("-" * 80)
-    
+
     # Simulate your use case: X_train.to_numpy(), y_train.to_numpy().ravel()
     X_numpy = X.to_numpy()
     y_numpy = y.ravel()
-    
+
     selector_numpy = LGBMStepwiseFeatureSelector(
         importance_type='gain',
         n_folds=5,
@@ -543,10 +812,10 @@ if __name__ == "__main__":
         verbose=True,
         metric=f1_score
     )
-    
+
     # This now works with numpy arrays!
     selector_numpy.fit(X_numpy, y_numpy)
-    
+
     print("\n\nSelection Summary:")
     print(selector_numpy.get_selection_summary())
     print(f"\nNote: Features were automatically named as feature_0, feature_1, etc.")

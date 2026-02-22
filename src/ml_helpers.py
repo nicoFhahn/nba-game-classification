@@ -75,9 +75,9 @@ def preprocess_data(
         ]).with_columns([
             (pl.col("pts_home") > pl.col("pts_guest")).alias("is_home_win")
         ])
-        season_games = season_schedule.select(
+        season_games = season_schedule.select([
             "game_id", "date", "home_team", "guest_team"
-        ).join(
+        ]).join(
             games,
             on="game_id"
         )
@@ -113,21 +113,21 @@ def preprocess_data(
         )
         season_boxscores = season_boxscore.partition_by("player_id")
         season_player_stats = [features.player_season_stats(boxscore) for boxscore in season_boxscores]
-        season_team_player_stats = pl.concat(season_player_stats).partition_by("team_id")
-        season_expected_stats = [features.calculate_expected_team_stats(sps) for sps in season_team_player_stats]
+        season_team_game_stats = pl.concat(season_player_stats).partition_by(["team_id", "game_id"])
+        season_expected_stats = [features.calculate_expected_team_stats(stgs) for stgs in season_team_game_stats]
         joined = joined.join(
-            pl.concat(season_expected_stats).drop("num_players").rename(
-                lambda c: f"{c}_home_team"
+            pl.concat(season_expected_stats).rename(
+                lambda c: f"{c}_home"
             ),
             left_on=["game_id", "home_team"],
-            right_on=["game_id_home_team", "team_id_home_team"],
+            right_on=["game_id_home", "team_id_home"],
             how="left"
         ).join(
-            pl.concat(season_expected_stats).drop("num_players").rename(
-                lambda c: f"{c}_guest_team"
+            pl.concat(season_expected_stats).rename(
+                lambda c: f"{c}_guest"
             ),
             left_on=["game_id", "guest_team"],
-            right_on=["game_id_guest_team", "team_id_guest_team"],
+            right_on=["game_id_guest", "team_id_guest"],
             how="left"
         )
         final_data.append(joined)
@@ -198,11 +198,16 @@ def run_pipeline(
         threshold_metric: str = 'accuracy',
         save_frequency: str = 'model',
         early_stopping=True,
-        early_stopping_rounds=50
+        early_stopping_rounds=50,
+        use_ensemble: bool = True
 ):
     games, schedule, player_boxscore, elo = load_data(supabase)
     print("Data loaded")
-    preprocessed_data = preprocess_data(games, schedule, player_boxscore, elo)
+    preprocessed_data = preprocess_data(games, schedule, player_boxscore, elo).with_columns(
+        pl.all().map_elements(
+            lambda x: None if x in (float("inf"), float("-inf")) else x
+        )
+    )
     print("Data preprocessed")
     X_train, y_train, X_test, y_test = train_test(
         preprocessed_data, cutoff_date, train_size
@@ -215,7 +220,8 @@ def run_pipeline(
             n_folds=n_folds,
             random_state=random_state,
             verbose=True,
-            metric=metric
+            metric=metric,
+            use_ensemble=use_ensemble
         )
         selector.fit(
             X_train.drop("date").to_numpy(),

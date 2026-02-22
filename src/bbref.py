@@ -11,6 +11,15 @@ from tqdm import tqdm
 from selenium.common.exceptions import TimeoutException, WebDriverException
 from supabase_helper import fetch_entire_table, fetch_distinct_column, fetch_month_data
 import time
+import time
+from selenium.common.exceptions import WebDriverException, TimeoutException
+
+import time
+import polars as pl
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.common.exceptions import TimeoutException, WebDriverException
 
 def start_driver():
     options = Options()
@@ -526,48 +535,89 @@ def scrape_missing_team_boxscores(supabase):
             time.sleep(2)
 
 
-def scrape_current_roster(driver, team_id):
+def scrape_current_roster(team_id, driver):
     team_url = f"https://www.basketball-reference.com/teams/{team_id}/2026.html"
-    roster_id = "roster"
-    injury_id = "injuries"
-    driver.get(team_url)
-    wait = WebDriverWait(driver, 10)
-    roster_table = wait.until(EC.presence_of_element_located((By.ID, roster_id)))
-    injury_table = wait.until(EC.presence_of_element_located((By.ID, injury_id)))
-    player_names = []
-    player_ids = []
-    player_tbody = roster_table.find_element(By.TAG_NAME, "tbody")
-    player_rows = player_tbody.find_elements(By.TAG_NAME, "tr")
-    for row in player_rows:
-        if not row.find_elements(By.TAG_NAME, "td"):
-            continue
-        first_td = row.find_element(By.TAG_NAME, "td").find_element(By.TAG_NAME, "a")
-        player_names.append(first_td.text)
-        player_id = first_td.get_attribute("href").split("/")[-1].split(".html")[0]
-        player_ids.append(player_id)
+    attempts = 0
+    max_retries = 5
 
-    injury_tbody = injury_table.find_element(By.TAG_NAME, "tbody")
-    injury_rows = injury_tbody.find_elements(By.TAG_NAME, "tr")
-    player_injuries = []
-    player_ids_injuries = []
-    for row in injury_rows:
-        first_th = row.find_element(By.TAG_NAME, "th").find_element(By.TAG_NAME, "a")
-        player_id = first_th.get_attribute("href").split("/")[-1].split(".html")[0]
-        player_ids_injuries.append(player_id)
-        injury_report = row.find_elements(By.TAG_NAME, "td")[-1].text
-        player_injuries.append(injury_report)
+    while attempts < max_retries:
+        try:
+            driver.get(team_url)
+            wait = WebDriverWait(driver, 10)
 
-    roster_df = pl.DataFrame({
-        "player_name": player_names,
-        "player_id": player_ids
-    })
-    injury_df = pl.DataFrame({
-        "player_id": player_ids_injuries,
-        "injury": player_injuries
-    })
-    current_roster = roster_df.join(
-        injury_df,
-        on="player_id",
-        how="left"
-    )
-    return current_roster
+            # 1. Wait for the main roster table (This must exist)
+            roster_table = wait.until(EC.presence_of_element_located((By.ID, "roster")))
+
+            # Extract Roster Data
+            player_names = []
+            player_ids = []
+            player_tbody = roster_table.find_element(By.TAG_NAME, "tbody")
+            player_rows = player_tbody.find_elements(By.TAG_NAME, "tr")
+
+            for row in player_rows:
+                cells = row.find_elements(By.TAG_NAME, "td")
+                if not cells:
+                    continue
+                # The first <td> usually contains the name link
+                link_element = cells[0].find_element(By.TAG_NAME, "a")
+                player_names.append(link_element.text)
+                p_id = link_element.get_attribute("href").split("/")[-1].split(".html")[0]
+                player_ids.append(p_id)
+
+            roster_df = pl.DataFrame({
+                "player_name": player_names,
+                "player_id": player_ids
+            })
+
+            # 2. Handle Injury Table (Optional - might not be on page)
+            # We use find_elements (plural) so it returns an empty list instead of crashing if not found
+            injury_elements = driver.find_elements(By.ID, "injuries")
+
+            if injury_elements:
+                injury_table = injury_elements[0]
+                injury_tbody = injury_table.find_element(By.TAG_NAME, "tbody")
+                injury_rows = injury_tbody.find_elements(By.TAG_NAME, "tr")
+
+                player_injuries = []
+                player_ids_injuries = []
+
+                for row in injury_rows:
+                    # Injuries often use <th> for the name link
+                    name_link = row.find_element(By.TAG_NAME, "th").find_element(By.TAG_NAME, "a")
+                    p_id_inj = name_link.get_attribute("href").split("/")[-1].split(".html")[0]
+                    player_ids_injuries.append(p_id_inj)
+
+                    injury_report = row.find_elements(By.TAG_NAME, "td")[-1].text
+                    player_injuries.append(injury_report)
+
+                injury_df = pl.DataFrame({
+                    "player_id": player_ids_injuries,
+                    "injury": player_injuries
+                })
+            else:
+                # Create an empty DF with correct types if no injuries found
+                injury_df = pl.DataFrame({
+                    "player_id": pl.Series([], dtype=pl.Utf8),
+                    "injury": pl.Series([], dtype=pl.Utf8)
+                })
+
+            # 3. Join and Return
+            current_roster = roster_df.join(
+                injury_df,
+                on="player_id",
+                how="left"
+            ).with_columns(
+                pl.lit(team_id).alias("team_id")
+            )
+
+            return current_roster
+
+        except (TimeoutException, WebDriverException) as e:
+            attempts += 1
+            wait_time = attempts * 5
+            print(f"Attempt {attempts} failed for {team_id}: {e}. Retrying in {wait_time}s...")
+            time.sleep(wait_time)
+
+    # If the loop finishes without returning
+    print(f"Max retries reached for {team_id}. Returning empty DataFrame.")
+    return pl.DataFrame()

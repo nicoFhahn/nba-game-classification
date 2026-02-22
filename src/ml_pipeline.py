@@ -838,6 +838,12 @@ def main_pipeline(X_train, y_train, X_test, y_test, n_trials=100, max_estimators
                 X_train = X_train.drop(date_column)
             else:
                 raise ValueError(f"date_column specified but X_train doesn't support .drop()")
+
+            # Also remove from X_test to keep feature counts consistent
+            if hasattr(X_test, 'columns') and date_column in X_test.columns:
+                print(f"Also removing '{date_column}' from X_test")
+                if hasattr(X_test, 'drop'):
+                    X_test = X_test.drop(date_column)
         else:
             raise ValueError(f"date_column '{date_column}' not found in X_train. Available columns: {X_train.columns}")
 
@@ -968,8 +974,10 @@ def main_pipeline(X_train, y_train, X_test, y_test, n_trials=100, max_estimators
     print(f"Optuna trials per model: {n_trials}")
 
     # Determine which models to train
-    models_to_train = ['ExtraTrees', 'XGBoost', 'LightGBM', 'CatBoost', 'HistGradientBoosting']
-    #                   'LogisticRegression', 'SGDClassifier', 'GaussianNB', 'BernoulliNB']
+    models_to_train = ['ExtraTrees', 'XGBoost', 'LightGBM', 'CatBoost']
+    #models_to_train = ["CatBoost"]
+    #,
+                      # 'LogisticRegression', 'SGDClassifier', 'GaussianNB', 'BernoulliNB']
     
     # Tune models individually and save after each if requested
     for model_name in models_to_train:
