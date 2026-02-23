@@ -1,6 +1,7 @@
 from supabase_helper import fetch_filtered_table
 from typing import Union, List
 import polars as pl
+import uuid
 
 def get_team_schedules(
         df: pl.DataFrame
@@ -140,11 +141,13 @@ def elo_update(supabase):
         pl.col("date").str.to_date()
     )
     elo_current_season_updated = elo_season(
-        games_w_schedule_current_season,
-        elo_w_schedule_last_season
+        games_w_schedule_current_season, elo_w_schedule_last_season
     ).filter(
         ~pl.col("game_id").is_in(elo_current_season["game_id"].to_list())
-    ).drop("date").to_dicts()
+    ).drop("date")
+    elo_current_season_updated = elo_current_season_updated.with_columns(
+        pl.Series("id", [str(uuid.uuid4()) for _ in range(len(elo_current_season_updated))])
+    ).to_dicts()
     if len(elo_current_season_updated) > 0:
         print("Updating elo")
         supabase.table("elo").insert(elo_current_season_updated).execute()

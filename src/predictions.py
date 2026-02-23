@@ -90,6 +90,8 @@ def update_existing_predictions(supabase):
     ).drop("is_home_win").join(
         schedule_current_season[["game_id", "is_home_win"]],
         on="game_id"
+    ).filter(
+        pl.col("is_home_win").is_not_null()
     ).to_dicts()
     if len(to_update) > 0:
         print("Updating newest predictions")

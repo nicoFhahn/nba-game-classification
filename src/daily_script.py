@@ -25,6 +25,7 @@ def _():
         create_client,
         elo_rating,
         fetch_entire_table,
+        importlib,
         json,
         load_pipeline,
         predictions,
@@ -34,7 +35,7 @@ def _():
 
 @app.cell
 def _(create_client, json, secretmanager):
-    name = "projects/898760610238/secrets/supabase/versions/2"
+    name = "projects/898760610238/secrets/supabase/versions/5"
     client = secretmanager.SecretManagerServiceClient()
     g_response = client.access_secret_version(request={"name": name})
     payload = g_response.payload.data.decode("UTF-8")
@@ -56,19 +57,15 @@ def _(bbref, supabase):
 
 @app.cell
 def _(bbref, supabase):
-    bbref.scrape_missing_team_boxscores(supabase)
+    bbref.scrape_missing_boxscores(supabase)
     return
 
 
 @app.cell
-def _(bbref, supabase):
-    bbref.scrape_missing_player_boxscores(supabase, bbref.start_driver())
-    return
-
-
-@app.cell
-def _(elo_rating, supabase):
+def _(elo_rating, importlib, supabase):
+    importlib.reload(elo_rating)
     elo_rating.elo_update(supabase)
+    # todo, earlier filtering to get the newest games from scrape missing boxscore & check whether they are in elo
     return
 
 
@@ -79,7 +76,8 @@ def _(predictions, supabase):
 
 
 @app.cell
-def _(predictions, supabase):
+def _(importlib, predictions, supabase):
+    importlib.reload(predictions)
     predictions.update_existing_predictions(supabase)
     return
 
@@ -99,7 +97,7 @@ def _(
     predictions,
     supabase,
 ):
-    if games_to_predict != None:
+    if games_to_predict is not None:
         with open("best_features_ensemble_20260201.json", "r") as f:
             bf = json.load(f)["features"]
         pipe = load_pipeline('ensemble_20260201')

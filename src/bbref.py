@@ -1,18 +1,10 @@
 import calendar
 import traceback
-import polars as pl
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
 from datetime import date, timedelta
 from tqdm import tqdm
-from selenium.common.exceptions import TimeoutException, WebDriverException
-from supabase_helper import fetch_entire_table, fetch_distinct_column, fetch_month_data
-import time
-import time
-from selenium.common.exceptions import WebDriverException, TimeoutException
+from supabase_helper import fetch_entire_table, fetch_distinct_column, fetch_distinct_column_in, fetch_month_data
 
 import time
 import polars as pl
@@ -20,6 +12,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException, WebDriverException
+
 
 def start_driver():
     options = Options()
@@ -28,9 +21,10 @@ def start_driver():
     options.add_argument('--disable-dev-shm-usage')
     options.add_argument('--incognito')  # Fresh session each time
     options.add_argument('user-agent=Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36')
-    
+
     driver = webdriver.Chrome(options=options)
     return driver
+
 
 def scrape_season(end_year: int, driver):
     url = f'https://www.basketball-reference.com/leagues/NBA_{end_year}_games.html'
@@ -50,6 +44,7 @@ def scrape_season(end_year: int, driver):
     })
     return season_df
 
+
 def scrape_month(month_url: str, driver):
     driver.get(month_url)
     wait = WebDriverWait(driver, 10)
@@ -62,7 +57,7 @@ def scrape_month(month_url: str, driver):
     visitor_abbrevs = []
     box_score_links = []
     locations = []
-    
+
     for row in rows:
         th_elements = row.find_elements(By.TAG_NAME, "th")
         cells = row.find_elements(By.TAG_NAME, "td")
@@ -73,22 +68,22 @@ def scrape_month(month_url: str, driver):
             visitor = cells[1].text.strip()
             home = cells[3].text.strip()
             arena = cells[9].text.strip()
-            
+
             visitor_link = cells[1].find_elements(By.TAG_NAME, "a")
             if not visitor_link:
                 continue
             visitor_href = visitor_link[0].get_attribute("href")
             visitor_abbrev = visitor_href.split("/teams/")[1].split("/")[0] if "/teams/" in visitor_href else ""
-            
+
             home_link = cells[3].find_elements(By.TAG_NAME, "a")
             if not home_link:
                 continue
             home_href = home_link[0].get_attribute("href")
             home_abbrev = home_href.split("/teams/")[1].split("/")[0] if "/teams/" in home_href else ""
-            
+
             link_elements = cells[5].find_elements(By.TAG_NAME, "a")
             box_score_link = link_elements[0].get_attribute("href") if link_elements else ""
-            
+
             if date and visitor and home and home_abbrev:
                 dates.append(date)
                 visitors.append(visitor)
@@ -99,7 +94,7 @@ def scrape_month(month_url: str, driver):
                 locations.append(arena)
         except Exception as e:
             continue
-    
+
     df = pl.DataFrame({
         'Date': dates,
         'Visitor': visitors,
@@ -115,22 +110,24 @@ def scrape_month(month_url: str, driver):
     ])
     return df
 
+
 def scrape_table_stats(table_id, driver):
     table = driver.find_element(By.ID, table_id)
-    
+
     thead = table.find_element(By.TAG_NAME, "thead")
     thead_rows = thead.find_elements(By.TAG_NAME, "tr")
     header_cells = thead_rows[1].find_elements(By.TAG_NAME, "th")[1:]
     column_names = [cell.get_attribute("data-stat") for cell in header_cells]
-    
+
     tfoot = table.find_element(By.TAG_NAME, "tfoot")
     tfoot_rows = tfoot.find_elements(By.TAG_NAME, "tr")
     stat_cells = tfoot_rows[0].find_elements(By.TAG_NAME, "td")
     stat_values = [cell.text.strip() for cell in stat_cells]
-    
+
     stats_dict = dict(zip(column_names, stat_values))
-    
+
     return stats_dict
+
 
 def scrape_game(game_url, home_abbrev, guest_abbrev, game_id, driver, supabase):
     response = (
@@ -212,6 +209,7 @@ def scrape_game(game_url, home_abbrev, guest_abbrev, game_id, driver, supabase):
         supabase.table("boxscore").insert(boxscore_df.to_dicts()).execute()
         time.sleep(4)
 
+
 def scrape_player_table_stats(table_id, driver):
     table = driver.find_element(By.ID, table_id)
 
@@ -259,205 +257,6 @@ def scrape_player_table_stats(table_id, driver):
         'players_stats': players_stats
     }
 
-def scrape_missing_player_boxscores(supabase, driver):
-    while True:
-        try:
-            # Refetch missing games on each restart
-            schedule = fetch_entire_table(supabase, "schedule").sort("game_id")
-            player_boxscore = fetch_distinct_column(supabase, "player-boxscore", "game_id")
-            missing_games = schedule.filter(
-                (~pl.col("game_id").is_in(player_boxscore)) &
-                (pl.col("game_url") != "")
-            )
-
-            if len(missing_games) == 0:
-                print("No missing games remaining!")
-                break
-
-            print(f"Processing {len(missing_games)} missing games...")
-
-            for i, row in enumerate(tqdm(missing_games.to_dicts(), ncols=100)):
-                # Restart driver every 50 iterations
-                if i > 0 and i % 50 == 0:
-                    driver.quit()
-                    time.sleep(2)
-                    driver = start_driver()
-
-                home_id_basic = f"box-{row['home_abbrev']}-game-basic"
-                home_id_advanced = f"box-{row['home_abbrev']}-game-advanced"
-                guest_id_basic = f"box-{row['guest_abbrev']}-game-basic"
-                guest_id_advanced = f"box-{row['guest_abbrev']}-game-advanced"
-                max_retries = 30
-                retry_delay = 60  # seconds
-
-                # Retry logic for loading the page
-                for attempt in range(max_retries):
-                    try:
-                        driver.get(row["game_url"])
-                        break
-                    except Exception as e:
-                        if attempt < max_retries - 1:
-                            print(f"Attempt {attempt + 1} failed: {e}. Retrying in {retry_delay} seconds...")
-                            time.sleep(retry_delay)
-                        else:
-                            print(f"Failed to load {row['game_url']} after {max_retries} attempts")
-                            raise
-
-                # Retry logic for waiting for page elements and scraping
-                scrape_success = False
-                for attempt in range(max_retries):
-                    try:
-                        wait = WebDriverWait(driver, 20)
-                        wait.until(lambda driver: driver.execute_script("return document.readyState") == "complete")
-
-                        wait.until(EC.presence_of_element_located((By.ID, home_id_basic)))
-                        wait.until(EC.presence_of_element_located((By.ID, guest_id_basic)))
-                        wait.until(EC.presence_of_element_located((By.ID, home_id_advanced)))
-                        wait.until(EC.presence_of_element_located((By.ID, guest_id_advanced)))
-
-                        res_home_basic = scrape_player_table_stats(home_id_basic, driver)
-                        res_home_advanced = scrape_player_table_stats(home_id_advanced, driver)
-                        res_guest_basic = scrape_player_table_stats(guest_id_basic, driver)
-                        res_guest_advanced = scrape_player_table_stats(guest_id_advanced, driver)
-
-                        scrape_success = True
-                        break
-
-                    except (TimeoutException, WebDriverException) as e:
-                        error_text = str(e)
-                        page_source = driver.page_source if driver else ""
-
-                        if "504" in error_text or "504" in page_source or "Gateway Timeout" in page_source:
-                            if attempt < max_retries - 1:
-                                print(
-                                    f"504 Gateway Timeout on attempt {attempt + 1}. Retrying in {retry_delay} seconds...")
-                                time.sleep(retry_delay)
-                                driver.get(row["game_url"])
-                            else:
-                                print(
-                                    f"Failed to scrape {row['game_url']} after {max_retries} attempts (504 Gateway Timeout)")
-                                break
-                        else:
-                            print(f"Error on attempt {attempt + 1}: {e}")
-                            print(driver.find_element(By.TAG_NAME, "body").text)
-                            break
-                    except Exception as e:
-                        print(f"Unexpected error: {e}")
-                        print(driver.find_element(By.TAG_NAME, "body").text)
-                        break
-
-                if not scrape_success:
-                    print(f"Skipping game {row['game_id']} due to scraping failure")
-                    continue
-
-                # Data processing
-                res_home_basic_df = pl.DataFrame(res_home_basic["players_stats"])
-                res_home_basic_df = res_home_basic_df.with_columns(
-                    pl.col("mp").str.split(":").list.eval(
-                        pl.element().first().cast(pl.Float64, strict=False) +
-                        pl.element().last().cast(pl.Float64, strict=False) / 60
-                    ).list.first()
-                ).with_columns(
-                    pl.col(res_home_basic_df.columns[1:21]).cast(pl.Float64, strict=False)
-                ).with_columns(
-                    pl.col("player_id").cast(pl.String)
-                )
-
-                res_home_advanced_df = pl.DataFrame(res_home_advanced["players_stats"])
-                res_home_advanced_df = res_home_advanced_df.with_columns(
-                    pl.col("mp").str.split(":").list.eval(
-                        pl.element().first().cast(pl.Float64, strict=False) +
-                        pl.element().last().cast(pl.Float64, strict=False) / 60
-                    ).list.first()
-                ).with_columns(
-                    pl.col(res_home_advanced_df.columns[1:16]).cast(pl.Float64, strict=False)
-                ).drop(pl.col("player_id"))
-
-                res_home_df = res_home_basic_df.join(
-                    res_home_advanced_df,
-                    on=["player_name", "mp"]
-                ).with_columns(
-                    pl.lit(row["home_team"]).alias("team_id"),
-                    pl.lit(row["game_id"]).alias("game_id")
-                )
-
-                res_guest_basic_df = pl.DataFrame(res_guest_basic["players_stats"])
-                res_guest_basic_df = res_guest_basic_df.with_columns(
-                    pl.col("mp").str.split(":").list.eval(
-                        pl.element().first().cast(pl.Float64, strict=False) +
-                        pl.element().last().cast(pl.Float64, strict=False) / 60
-                    ).list.first()
-                ).with_columns(
-                    pl.col(res_guest_basic_df.columns[1:21]).cast(pl.Float64, strict=False)
-                ).with_columns(
-                    pl.col("player_id").cast(pl.String)
-                )
-
-                res_guest_advanced_df = pl.DataFrame(res_guest_advanced["players_stats"])
-                res_guest_advanced_df = res_guest_advanced_df.with_columns(
-                    pl.col("mp").str.split(":").list.eval(
-                        pl.element().first().cast(pl.Float64, strict=False) +
-                        pl.element().last().cast(pl.Float64, strict=False) / 60
-                    ).list.first()
-                ).with_columns(
-                    pl.col(res_guest_advanced_df.columns[1:16]).cast(pl.Float64, strict=False)
-                ).drop(pl.col("player_id"))
-
-                res_guest_df = res_guest_basic_df.join(
-                    res_guest_advanced_df,
-                    on=["player_name", "mp"]
-                ).with_columns(
-                    pl.lit(row["guest_team"]).alias("team_id"),
-                    pl.lit(row["game_id"]).alias("game_id")
-                )
-
-                res_df = pl.concat([res_home_df, res_guest_df])
-
-                # Retry logic for database insert
-                for attempt in range(max_retries):
-                    try:
-                        supabase.table("player-boxscore").insert(res_df.to_dicts()).execute()
-                        break
-                    except Exception as e:
-                        error_text = str(e)
-                        if "504" in error_text or "Gateway Timeout" in error_text:
-                            if attempt < max_retries - 1:
-                                print(
-                                    f"504 Gateway Timeout on database insert, attempt {attempt + 1}. Retrying in 60 seconds...")
-                                time.sleep(60)
-                            else:
-                                print(f"Failed to insert data for game {row['game_id']} after {max_retries} attempts")
-                                raise
-                        else:
-                            print(f"Database error: {e}")
-                            raise
-
-                time.sleep(2)
-
-            # If we reach here, all games processed successfully
-            break
-
-        except Exception as e:
-            print(f"\n{'=' * 80}")
-            print(f"CRASH DETECTED")
-            print(f"Error: {e}")
-            print(f"Traceback:")
-            traceback.print_exc()
-            print(f"{'=' * 80}\n")
-
-            # Clean up driver
-            try:
-                driver.quit()
-            except:
-                pass
-
-            # Wait before restart
-            print(f"Waiting 30 seconds before restarting...")
-            time.sleep(30)
-
-            # Restart driver and loop will refetch missing games
-            print(f"Restarting and refetching missing games...")
-            driver = start_driver()
 
 def update_current_month(supabase, driver):
     d = date.today() - timedelta(days=(date.today().day == 1))
@@ -496,43 +295,263 @@ def update_current_month(supabase, driver):
     print("inserted new data")
     driver.quit()
 
-def scrape_missing_team_boxscores(supabase):
+
+def _process_player_df(raw, cols_to_cast_end):
+    """Parse a raw scrape_player_table_stats result into a typed Polars DataFrame."""
+    df = pl.DataFrame(raw["players_stats"])
+    col_names = df.columns  # capture before any transformation
+    df = df.with_columns(
+        pl.col("mp").str.split(":").list.eval(
+            pl.element().first().cast(pl.Float64, strict=False) +
+            pl.element().last().cast(pl.Float64, strict=False) / 60
+        ).list.first()
+    ).with_columns(
+        pl.col(col_names[1:cols_to_cast_end]).cast(pl.Float64, strict=False)
+    )
+    return df
+
+
+def scrape_missing_boxscores(supabase):
+    """
+    Combined replacement for scrape_missing_team_boxscores and scrape_missing_player_boxscores.
+
+    Fetches the schedule and both existing boxscore tables once per loop iteration,
+    then visits each game page at most once — scraping team stats, player stats, or
+    both depending on which table(s) are still missing that game_id.
+    Results are saved to the original separate tables ("boxscore" and "player-boxscore").
+    """
+    driver = None
     while True:
         try:
-            season = fetch_entire_table(supabase, "schedule").sort("game_id")
-            games = fetch_entire_table(supabase, "boxscore").sort("game_id")
-            missing_games = season.filter(
-                (~pl.col("game_id").is_in(games["game_id"].to_list())) &
+            # --- Single pass to determine what is missing ---
+            schedule = fetch_entire_table(supabase, "schedule").sort("game_id")
+
+            # Scope to the current season only — past seasons are already fully scraped
+            max_season_id = schedule["season_id"].max()
+            current_season = schedule.filter(pl.col("season_id") == max_season_id)
+            current_season_game_ids = current_season["game_id"].to_list()
+
+            # Targeted queries: only check the current season's game_ids in both tables
+            # instead of paging through every row ever inserted
+            existing_team_ids = set(
+                fetch_distinct_column_in(supabase, "boxscore", "game_id", "game_id", current_season_game_ids)
+            )
+            existing_player_ids = set(
+                fetch_distinct_column(supabase, "get_distinct_game_ids")
+            )
+
+            missing_games = current_season.filter(
+                (
+                        (~pl.col("game_id").is_in(list(existing_team_ids))) |
+                        (~pl.col("game_id").is_in(list(existing_player_ids)))
+                ) &
                 (pl.col("game_url") != "")
             )
-            if missing_games.shape[0] > 0:
-                driver = start_driver()
 
-                for i, row in enumerate(tqdm(missing_games.to_dicts(), ncols=100)):
-
-                    # Restart driver every 50 iterations
-                    if i > 0 and i % 50 == 0:
-                        driver.quit()
-                        time.sleep(2)
-                        driver = start_driver()
-
-                    scrape_game(
-                        row["game_url"],
-                        row["home_abbrev"],
-                        row["guest_abbrev"],
-                        row["game_id"],
-                        driver,
-                        supabase
-                    )
-
-                driver.quit()
-            else:
-                # No more missing games, exit the loop
+            if len(missing_games) == 0:
+                print("No missing games remaining!")
                 break
+
+            print(f"Processing {len(missing_games)} missing games...")
+            driver = start_driver()
+
+            for i, row in enumerate(tqdm(missing_games.to_dicts(), ncols=100)):
+                # Restart driver every 50 iterations to avoid memory bloat
+                if i > 0 and i % 50 == 0:
+                    driver.quit()
+                    time.sleep(2)
+                    driver = start_driver()
+
+                needs_team = row["game_id"] not in existing_team_ids
+                needs_player = row["game_id"] not in existing_player_ids
+
+                home_abbrev = row["home_abbrev"]
+                guest_abbrev = row["guest_abbrev"]
+                home_id_basic = f"box-{home_abbrev}-game-basic"
+                home_id_advanced = f"box-{home_abbrev}-game-advanced"
+                guest_id_basic = f"box-{guest_abbrev}-game-basic"
+                guest_id_advanced = f"box-{guest_abbrev}-game-advanced"
+
+                max_retries = 30
+                retry_delay = 60  # seconds
+
+                # --- Load the page ---
+                for attempt in range(max_retries):
+                    try:
+                        driver.get(row["game_url"])
+                        break
+                    except Exception as e:
+                        if attempt < max_retries - 1:
+                            print(f"Attempt {attempt + 1} failed: {e}. Retrying in {retry_delay}s...")
+                            time.sleep(retry_delay)
+                        else:
+                            print(f"Failed to load {row['game_url']} after {max_retries} attempts")
+                            raise
+
+                # --- Wait for tables, scrape, and insert ---
+                scrape_success = False
+                for attempt in range(max_retries):
+                    try:
+                        wait = WebDriverWait(driver, 20)
+                        wait.until(
+                            lambda d: d.execute_script("return document.readyState") == "complete"
+                        )
+                        wait.until(EC.presence_of_element_located((By.ID, home_id_basic)))
+                        wait.until(EC.presence_of_element_located((By.ID, guest_id_basic)))
+                        wait.until(EC.presence_of_element_located((By.ID, home_id_advanced)))
+                        wait.until(EC.presence_of_element_located((By.ID, guest_id_advanced)))
+
+                        # --- Team boxscore ---
+                        if needs_team:
+                            home_stats_basic = pl.DataFrame(scrape_table_stats(home_id_basic, driver))
+                            home_stats_basic = home_stats_basic.with_columns([
+                                pl.col(c).cast(pl.Float64, strict=False) for c in home_stats_basic.columns
+                            ]).drop(["game_score", "plus_minus"]).rename(lambda c: f"{c}_home")
+
+                            home_stats_advanced = pl.DataFrame(scrape_table_stats(home_id_advanced, driver))
+                            home_stats_advanced = home_stats_advanced.with_columns([
+                                pl.col(c).cast(pl.Float64, strict=False) for c in home_stats_advanced.columns
+                            ]).select(["tov_pct", "off_rtg", "def_rtg"]).rename(lambda c: f"{c}_home")
+
+                            guest_stats_basic = pl.DataFrame(scrape_table_stats(guest_id_basic, driver))
+                            guest_stats_basic = guest_stats_basic.with_columns([
+                                pl.col(c).cast(pl.Float64, strict=False) for c in guest_stats_basic.columns
+                            ]).drop(["game_score", "plus_minus"]).rename(lambda c: f"{c}_guest")
+
+                            guest_stats_advanced = pl.DataFrame(scrape_table_stats(guest_id_advanced, driver))
+                            guest_stats_advanced = guest_stats_advanced.with_columns([
+                                pl.col(c).cast(pl.Float64, strict=False) for c in guest_stats_advanced.columns
+                            ]).select(["tov_pct", "off_rtg", "def_rtg"]).rename(lambda c: f"{c}_guest")
+
+                            team_boxscore_df = pl.concat([
+                                home_stats_basic, home_stats_advanced,
+                                guest_stats_basic, guest_stats_advanced
+                            ], how="horizontal").with_columns(
+                                pl.lit(row["game_id"]).alias("game_id")
+                            )
+
+                            for attempt_db in range(max_retries):
+                                try:
+                                    supabase.table("boxscore").insert(team_boxscore_df.to_dicts()).execute()
+                                    existing_team_ids.add(row["game_id"])
+                                    break
+                                except Exception as e:
+                                    error_text = str(e)
+                                    if "504" in error_text or "Gateway Timeout" in error_text:
+                                        if attempt_db < max_retries - 1:
+                                            print(
+                                                f"504 on team boxscore insert, attempt {attempt_db + 1}. Retrying in 60s...")
+                                            time.sleep(60)
+                                        else:
+                                            print(
+                                                f"Failed to insert team boxscore for {row['game_id']} after {max_retries} attempts")
+                                            raise
+                                    else:
+                                        print(f"Database error (team boxscore): {e}")
+                                        raise
+
+                        # --- Player boxscore ---
+                        if needs_player:
+                            res_home_basic = scrape_player_table_stats(home_id_basic, driver)
+                            res_home_advanced = scrape_player_table_stats(home_id_advanced, driver)
+                            res_guest_basic = scrape_player_table_stats(guest_id_basic, driver)
+                            res_guest_advanced = scrape_player_table_stats(guest_id_advanced, driver)
+
+                            home_basic_df = _process_player_df(res_home_basic, 21).with_columns(
+                                pl.col("player_id").cast(pl.String))
+                            home_advanced_df = _process_player_df(res_home_advanced, 16).drop("player_id")
+                            guest_basic_df = _process_player_df(res_guest_basic, 21).with_columns(
+                                pl.col("player_id").cast(pl.String))
+                            guest_advanced_df = _process_player_df(res_guest_advanced, 16).drop("player_id")
+
+                            res_home_df = home_basic_df.join(home_advanced_df, on=["player_name", "mp"]).with_columns(
+                                pl.lit(row["home_team"]).alias("team_id"),
+                                pl.lit(row["game_id"]).alias("game_id")
+                            )
+                            res_guest_df = guest_basic_df.join(guest_advanced_df,
+                                                               on=["player_name", "mp"]).with_columns(
+                                pl.lit(row["guest_team"]).alias("team_id"),
+                                pl.lit(row["game_id"]).alias("game_id")
+                            )
+                            player_boxscore_df = pl.concat([res_home_df, res_guest_df])
+
+                            if player_boxscore_df.is_empty():
+                                raise ValueError(
+                                    f"Player boxscore join produced 0 rows for {row['game_id']} — "
+                                    f"home basic: {len(home_basic_df)}, home advanced: {len(home_advanced_df)}, "
+                                    f"guest basic: {len(guest_basic_df)}, guest advanced: {len(guest_advanced_df)}"
+                                )
+
+                            for attempt_db in range(max_retries):
+                                try:
+                                    supabase.table("player-boxscore").insert(player_boxscore_df.to_dicts()).execute()
+                                    existing_player_ids.add(row["game_id"])
+                                    break
+                                except Exception as e:
+                                    error_text = str(e)
+                                    if "504" in error_text or "Gateway Timeout" in error_text:
+                                        if attempt_db < max_retries - 1:
+                                            print(
+                                                f"504 on player boxscore insert, attempt {attempt_db + 1}. Retrying in 60s...")
+                                            time.sleep(60)
+                                        else:
+                                            print(
+                                                f"Failed to insert player boxscore for {row['game_id']} after {max_retries} attempts")
+                                            raise
+                                    else:
+                                        print(f"Database error (player boxscore): {e}")
+                                        raise
+
+                        scrape_success = True
+                        break  # Exit the scrape-retry loop on success
+
+                    except (TimeoutException, WebDriverException) as e:
+                        error_text = str(e)
+                        page_source = driver.page_source if driver else ""
+                        if "504" in error_text or "504" in page_source or "Gateway Timeout" in page_source:
+                            if attempt < max_retries - 1:
+                                print(f"504 Gateway Timeout on attempt {attempt + 1}. Retrying in {retry_delay}s...")
+                                time.sleep(retry_delay)
+                                driver.get(row["game_url"])
+                            else:
+                                print(f"Failed to scrape {row['game_url']} after {max_retries} attempts (504)")
+                                break
+                        else:
+                            print(
+                                f"Selenium error on attempt {attempt + 1} for {row['game_id']}: {type(e).__name__}: {e}")
+                            break
+                    except Exception as e:
+                        print(f"Unexpected error for {row['game_id']}: {type(e).__name__}: {e}")
+                        break
+
+                if not scrape_success:
+                    print(f"Skipping game {row['game_id']} due to scraping failure")
+                    continue
+
+                time.sleep(2)
+
+            driver.quit()
+            driver = None
+            break  # All games processed successfully
+
         except Exception as e:
-            print(f"Error occurred: {e}")
-            print("Retrying...")
-            time.sleep(2)
+            print(f"\n{'=' * 80}")
+            print(f"CRASH DETECTED")
+            print(f"Error: {e}")
+            print(f"Traceback:")
+            traceback.print_exc()
+            print(f"{'=' * 80}\n")
+
+            try:
+                if driver:
+                    driver.quit()
+            except:
+                pass
+            driver = None
+
+            print("Waiting 30 seconds before restarting...")
+            time.sleep(30)
+            print("Restarting and refetching missing games...")
 
 
 def scrape_current_roster(team_id, driver):

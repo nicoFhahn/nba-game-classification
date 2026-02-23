@@ -21,20 +21,18 @@ def _():
 
     from elo_rating import elo_season
     from ml_pipeline import load_pipeline
-    from supabase_helper import fetch_entire_table, fetch_filtered_table, fetch_month_data
+    from supabase_helper import fetch_entire_table, fetch_filtered_table, fetch_distinct_column
     from google.cloud import secretmanager
     from shap_analysis import calculate_shap_ensemble, plot_shap_summary
 
     return (
         create_client,
-        features,
         fetch_entire_table,
         fetch_filtered_table,
         json,
         load_pipeline,
         pl,
         secretmanager,
-        tqdm,
     )
 
 
@@ -51,320 +49,46 @@ def _(create_client, json, secretmanager):
     return (supabase,)
 
 
-@app.function
-def upcoming_games(schedule, boxscore):
-    remaining_schedule = schedule.join(boxscore, on="game_id", how="anti")
-    team_timeline = remaining_schedule.select(
-        ["game_id", "home_team", "guest_team"]
-    ).unpivot(index="game_id", variable_name="side", value_name="team")
-
-    next_game_per_team = team_timeline.sort("game_id").group_by("team").first()
-    upcoming_games = remaining_schedule.join(
-        next_game_per_team.select(["team", "game_id"]),
-        left_on=["home_team", "game_id"],
-        right_on=["team", "game_id"],
-        how="inner"
-    ).join(
-        next_game_per_team.select(["team", "game_id"]),
-        left_on=["guest_team", "game_id"],
-        right_on=["team", "game_id"],
-        how="inner"
-    )
-    return upcoming_games
-
-
 @app.cell
 def _(fetch_entire_table, fetch_filtered_table, pl, supabase):
-    current_season, current_boxscore = fetch_filtered_table(
+    predictions = fetch_entire_table(supabase, "predictions")
+    schedule_current_season, games_current_season = fetch_filtered_table(
         supabase, "schedule", "boxscore", "season_id", "game_id"
     )
-    current_season, current_player_boxscore = fetch_filtered_table(
-        supabase, "schedule", "player-boxscore", "season_id", "game_id"
-    )
-    games_to_predict = upcoming_games(current_season, current_boxscore)
-    playoffs = fetch_entire_table(supabase, "playoffs")
-    locations = fetch_entire_table(supabase, "location")
-    current_season = current_season.join(
-        locations,
-        on="arena"
-    ).join(
-        playoffs,
-        on="season_id"
-    ).with_columns(
-        pl.col("date").str.to_date(),
-        pl.col("playoff_start").str.to_date()
-    ).with_columns(
-        (pl.col("date") >= pl.col("playoff_start")).alias("is_playoff_game")
-    )
-    return (
-        current_boxscore,
-        current_player_boxscore,
-        current_season,
-        games_to_predict,
-    )
-
-
-@app.cell
-def _(
-    current_boxscore,
-    current_player_boxscore,
-    current_season,
-    features,
-    games_to_predict,
-    pl,
-):
-    season_schedule = current_season.join(
-        current_boxscore,
+    schedule_current_season = schedule_current_season.join(
+        games_current_season,
         on="game_id",
         how="left"
-    ).sort("date").select([
-        "game_id", "date", "home_team", "guest_team", "pts_home", "pts_guest", "is_playoff_game",
-        "latitude", "longitude"
-    ]).with_columns([
+    ).with_columns(
         (pl.col("pts_home") > pl.col("pts_guest")).alias("is_home_win")
-    ])
-    season_games = season_schedule.select(
-        "game_id", "date", "home_team", "guest_team"
-    ).join(
-        current_boxscore,
-        on="game_id",
-        how="left"
     )
-    teams = list(set(games_to_predict["home_team"])) + list(set(games_to_predict["guest_team"]))
-    boxscore_dfs = [features.team_boxscores(season_games, team) for team in teams]
-    team_stats = [features.team_season_stats(boxscore_df) for boxscore_df in boxscore_dfs]
-    season_schedule = features.add_overall_winning_pct(season_schedule)
-    season_schedule = features.add_location_winning_pct(season_schedule)
-    season_schedule = features.h2h(season_schedule)
-    season_schedule = features.compute_travel(season_schedule)
-    team_stats = pl.concat(team_stats)
-    joined = season_schedule.drop([
-        "date", "pts_home", "pts_guest",
-        "home_win", "guest_win", "latitude", "longitude"
-    ]).join(
-        team_stats.drop(["date", "is_win"]).rename(
-            lambda c: f"{c}_home"
-        ),
-        left_on=["game_id", "home_team"],
-        right_on=["game_id_home", "team_home"]
-    ).join(
-        team_stats.drop(["date", "is_win"]).rename(
-            lambda c: f"{c}_guest"
-        ),
-        left_on=["game_id", "guest_team"],
-        right_on=["game_id_guest", "team_guest"]
-    ).filter(
-        pl.col("game_id").is_in(games_to_predict["game_id"].to_list())
-    )
-    season_boxscore = current_season[["game_id", "season_id"]].join(
-        current_player_boxscore,
-        on="game_id",
-        how="left"
-    )
-    return joined, season_boxscore, season_schedule
+    return predictions, schedule_current_season
 
 
 @app.cell
-def _(features, games_to_predict, season_boxscore, tqdm):
-    import bbref
-    # import importlib
-    # importlib.reload(bbref)
-    season_boxscores = season_boxscore.partition_by("player_id")
-    season_player_stats = [features.player_season_stats(boxscore) for boxscore in season_boxscores]
-    # todo: hier muss ich mir jetzt das aktuelle roster ziehen und alle partitions der avail. players bauen - dann für diese die  exp. stats calculaten
-    driver = bbref.start_driver()
-    team_ids = games_to_predict["home_abbrev"].to_list() + games_to_predict["guest_abbrev"].to_list()
-    current_rosters = [bbref.scrape_current_roster(team_id, driver) for team_id in tqdm(team_ids)]
-    return current_rosters, season_player_stats
-
-
-@app.cell
-def _(current_rosters, pl):
-    available_rosters = pl.concat(current_rosters).filter(
-        (pl.col("injury").is_null()) |
-        (pl.col("injury").str.starts_with("Day"))
-    ).with_columns(
-        pl.col("injury").is_not_null()
-    ).partition_by("team_id")
-    return (available_rosters,)
-
-
-@app.cell
-def _(pl):
-    from itertools import product
-    def get_available_rosters(rosters: list[pl.DataFrame]) -> list[list[pl.DataFrame]]:
-        """
-        For each team roster, generate all possible player combinations
-        based on injured players (each injured player may or may not play).
-
-        Args:
-            rosters: List of Polars DataFrames, one per team, with a boolean "injury" column.
-
-        Returns:
-            A list (one entry per team) of lists of DataFrames,
-            where each DataFrame is one possible available roster.
-        """
-        available_rosters = []
-
-        for roster in rosters:
-            healthy = roster.filter(pl.col("injury") == False)
-            injured = roster.filter(pl.col("injury") == True)
-
-            injured_players = injured.to_dicts()
-
-            # Generate all subsets of injured players (2^n combinations)
-            team_combinations = []
-            for inclusion in product([True, False], repeat=len(injured_players)):
-                playing_injured = [
-                    player for player, plays in zip(injured_players, inclusion) if plays
-                ]
-
-                if playing_injured:
-                    playing_injured_df = pl.DataFrame(playing_injured, schema=roster.schema)
-                    possible_roster = pl.concat([healthy, playing_injured_df])
-                else:
-                    possible_roster = healthy.clone()
-
-                team_combinations.append(possible_roster)
-
-            available_rosters.append(team_combinations)
-
-        return available_rosters
-
-    return (get_available_rosters,)
-
-
-@app.cell
-def _(
-    available_rosters,
-    features,
-    get_available_rosters,
-    pl,
-    season_player_stats,
-):
-    potential_rosters = get_available_rosters(available_rosters)
-    season_player_stats_df = pl.concat(season_player_stats)
-    potential_stats = []
-
-    for pr in potential_rosters:
-        ts = []
-        for roster in pr:
-            temp = season_player_stats_df.filter(
-                pl.col("player_id").is_in(roster["player_id"])
-            ).sort("game_id").group_by("player_id").tail(1).with_columns(
-                pl.lit("temp").alias("game_id")
-            )
-        
-            expected = features.calculate_expected_team_stats(temp).tail(1)
-        
-            if not any(expected.equals(existing) for existing in ts):
-                ts.append(expected)
-            
-        potential_stats.append(ts)
-    return (potential_stats,)
-
-
-@app.cell
-def _(games_to_predict, pl, potential_stats):
-    all_potential_stats = pl.concat([pl.concat(stats) for stats in potential_stats]).drop("num_players", "total_minutes_check", "game_id")
-    all_potential_stats = pl.concat([
-        games_to_predict.select(["game_id", "home_team"]).join(
-            all_potential_stats,
-            left_on="home_team",
-            right_on="team_id"
-        ).rename({"home_team": "team_id"}),
-        games_to_predict.select(["game_id", "guest_team"]).join(
-            all_potential_stats,
-            left_on="guest_team",
-            right_on="team_id"
-        ).rename({"guest_team": "team_id"}),
-    ])
-    return (all_potential_stats,)
-
-
-@app.cell
-def _(fetch_entire_table, pl, supabase):
-    elo = fetch_entire_table(supabase, "elo").with_columns(
-        pl.col("elo_after").shift(7).over(pl.col("team_id")).alias("elo_7_games_before")
-    ).with_columns(
-        (pl.col("elo_after") - pl.col("elo_7_games_before")).alias("elo_change_7_absolute"),
-        (pl.col("elo_after") / pl.col("elo_7_games_before") - 1).alias("elo_change_7_relative")
-    ).drop("elo_7_games_before")
-    current_elo = elo.group_by("team_id").tail(1).select("team_id", "elo_after", "elo_change_7_absolute", "elo_change_7_relative")
-    return (current_elo,)
-
-
-@app.cell
-def _(all_potential_stats, current_elo, joined):
-    final_df = joined.join(
-        all_potential_stats.rename(
-            lambda c: f"{c}_home_team"
-        ),
-        left_on=["game_id", "home_team"],
-        right_on=["game_id_home_team", "team_id_home_team"]
-    ).join(
-        all_potential_stats.rename(
-            lambda c: f"{c}_guest_team"
-        ),
-        left_on=["game_id", "guest_team"],
-        right_on=["game_id_guest_team", "team_id_guest_team"]
-    ).join(
-        current_elo.rename({
-            "elo_after": "elo_home",
-            "elo_change_7_absolute": "elo_change_7_absolute_home",
-            "elo_change_7_relative": "elo_change_7_relative_home"
-        }),
-        left_on="home_team",
-        right_on="team_id"
-    ).join(
-        current_elo.rename({
-            "elo_after": "elo_guest",
-            "elo_change_7_absolute": "elo_change_7_absolute_guest",
-            "elo_change_7_relative": "elo_change_7_relative_guest"
-        }),
-        left_on="guest_team",
-        right_on="team_id"
-    )
-    return (final_df,)
-
-
-@app.cell
-def _(json):
-    with open("best_features_ensemble_20260201.json", "r") as f:
-        bf = json.load(f)
-    return (bf,)
-
-
-@app.cell
-def _(bf, final_df, load_pipeline, pl, season_schedule):
-    saved = load_pipeline('ensemble_20260201')
-    X = final_df.select(bf["features"])
-    new_predictions = saved['ensemble'].predict_proba(X.to_numpy())
-    threshold=saved['threshold']
-    pred_upcoming_games=final_df.select([
-        "game_id", "home_team", "guest_team",
-        "is_home_win"
-    ]).with_columns([
-        pl.Series(
-            "proba",
-            new_predictions
-        )
-    ]).group_by(["game_id", "home_team", "guest_team", "is_home_win"]).agg([
-        pl.col("proba").mean()
-    ]).with_columns([
-        (pl.col("proba") >= threshold).alias("is_predicted_home_win")
-    ]).join(
-        season_schedule[["game_id", "date"]],
+def _(pl, predictions, schedule_current_season):
+    predictions.filter(
+        pl.col("is_home_win").is_null()
+    ).drop("is_home_win").join(
+        schedule_current_season[["game_id", "is_home_win"]],
         on="game_id"
-    ).with_columns(
-        pl.col("date").cast(pl.String)
-    )
-    return (pred_upcoming_games,)
+    ).filter(
+        pl.col("is_home_win").is_not_null()
+    ).to_dicts()
+    return
 
 
 @app.cell
-def _(pred_upcoming_games):
-    pred_upcoming_games
+def _(pl, predictions, schedule_current_season):
+    to_update = predictions.filter(
+        pl.col("is_home_win").is_null()
+    ).drop("is_home_win").join(
+        schedule_current_season[["game_id", "is_home_win"]],
+        on="game_id"
+    ).filter(
+        pl.col("is_home_win").is_not_null()
+    ).to_dicts()
+    #supabase.table("predictions").upsert(to_update).execute()
     return
 
 

@@ -1,26 +1,65 @@
 import polars as pl
 from datetime import datetime
-from dateutil.relativedelta import relativedelta    
+from dateutil.relativedelta import relativedelta
 
 
-def fetch_distinct_column(supabase, table_name, column_name, page_size=10000):
-    all_values = set()
+def fetch_distinct_column(supabase, function_name, page_size=10000):
+    all_ids = []
     start = 0
+
     while True:
-        response = (
-            supabase
-            .table(table_name)
-            .select(column_name)
-            .order("id")
+        r = (
+            supabase.rpc(function_name)
             .range(start, start + page_size - 1)
             .execute()
         )
-        batch = response.data
+
+        batch = [row['id_value'] for row in r.data]
         if not batch:
             break
-        # Extract the column values and add to set (automatically deduplicates)
-        all_values.update(row[column_name] for row in batch if row.get(column_name) is not None)
+
+        all_ids.extend(batch)
         start += page_size
+    return list(all_ids)
+
+
+def fetch_distinct_column_in(supabase, table_name, column_name, filter_column, filter_values, page_size=10000,
+                             chunk_size=50):
+    """
+    Fetch distinct values of `column_name` from `table_name`, but only for rows
+    where `filter_column` is in `filter_values`. Queries in chunks to stay within
+    Supabase URL-length limits.
+
+    Args:
+        supabase:       Supabase client instance
+        table_name:     Table to query
+        column_name:    Column whose distinct values you want
+        filter_column:  Column to filter on (e.g. "game_id")
+        filter_values:  List of values to filter by (e.g. current-season game_ids)
+        page_size:      Rows per paginated request
+        chunk_size:     Number of filter values per .in_() call
+
+    Returns:
+        list of distinct values
+    """
+    all_values = set()
+    for i in range(0, len(filter_values), chunk_size):
+        chunk = filter_values[i:i + chunk_size]
+        start = 0
+        while True:
+            response = (
+                supabase
+                .table(table_name)
+                .select(column_name)
+                .in_(filter_column, chunk)
+                .range(start, start + page_size - 1)
+                .execute()
+            )
+            batch = response.data
+            if not batch:
+                break
+            all_values.update(row[column_name] for row in batch if row.get(column_name) is not None)
+            start += page_size
     return list(all_values)
 
 
@@ -52,17 +91,18 @@ def fetch_entire_table(supabase, table_name, page_size=10000, sort=False):
         start += page_size
     return pl.DataFrame(all_rows)
 
+
 def fetch_month_data(supabase, table_name, date_obj, date_column='date', page_size=10000):
     """
     Fetch all rows for a given month from a Supabase table.
-    
+
     Args:
         supabase: Supabase client instance
         table_name: Name of the table to query
         date_obj: A date object (e.g., date.today(), date(2026, 1, 15))
         date_column: Name of the date/timestamp column to filter on (default: 'created_at')
         page_size: Number of rows to fetch per request (default: 10000)
-    
+
     Returns:
         polars.DataFrame containing all rows for the specified month
     """
@@ -70,14 +110,14 @@ def fetch_month_data(supabase, table_name, date_obj, date_column='date', page_si
     start_date = datetime(date_obj.year, date_obj.month, 1)
     # Get the first day of the next month
     end_date = start_date + relativedelta(months=1)
-    
+
     # Format dates for Supabase query (ISO format)
     start_str = start_date.isoformat()
     end_str = end_date.isoformat()
-    
+
     all_rows = []
     start = 0
-    
+
     while True:
         response = (
             supabase
@@ -88,14 +128,14 @@ def fetch_month_data(supabase, table_name, date_obj, date_column='date', page_si
             .range(start, start + page_size - 1)
             .execute()
         )
-        
+
         batch = response.data
         if not batch:
             break
-        
+
         all_rows.extend(batch)
         start += page_size
-    
+
     return pl.DataFrame(all_rows)
 
 

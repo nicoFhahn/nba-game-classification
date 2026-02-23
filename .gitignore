@@ -16,6 +16,7 @@ myenv/
 # Data files
 *.csv
 *.xlsx
+*.parquet
 
 # Marimo
 __marimo__/
