@@ -160,11 +160,18 @@ def upcoming_game_data(supabase):
     current_season, current_boxscore = fetch_filtered_table(
         supabase, "schedule", "boxscore", "season_id", "game_id"
     )
+    games_to_predict = upcoming_games(current_season, current_boxscore)
+    current_predictions = fetch_entire_table(supabase, "predictions")
+    games_to_predict = games_to_predict.filter(
+        ~pl.col("game_id").is_in(current_predictions["game_id"].to_list()),
+    )
+    if games_to_predict.shape[0] == 0:
+        print("No predictions need to be made")
+        return
     current_season, current_player_boxscore = fetch_filtered_table(
         supabase, "schedule", "player-boxscore", "season_id", "game_id"
     )
     elo = fetch_entire_table(supabase, "elo")
-    games_to_predict = upcoming_games(current_season, current_boxscore)
     playoffs = fetch_entire_table(supabase, "playoffs")
     locations = fetch_entire_table(supabase, "location")
     current_season = current_season.join(
@@ -203,6 +210,8 @@ def upcoming_game_data(supabase):
     season_schedule = features.add_location_winning_pct(season_schedule)
     season_schedule = features.h2h(season_schedule)
     season_schedule = features.compute_travel(season_schedule)
+    season_schedule = features.add_rest_features(season_schedule)
+    season_schedule = features.add_clutch_features(season_schedule)
     team_stats = pl.concat(team_stats)
     joined = season_schedule.drop([
         "date", "pts_home", "pts_guest",
@@ -311,3 +320,26 @@ def upcoming_game_data(supabase):
         right_on="team_id"
     )
     return final_df
+
+def predict_upcoming_games(df, model, features, threshold, schedule):
+    X = df.select(features)
+    predictions = model.predict_proba(X.to_numpy())
+    game_predictions=df.select([
+        "game_id", "home_team", "guest_team",
+        "is_home_win"
+    ]).with_columns([
+        pl.Series(
+            "proba",
+            predictions
+        )
+    ]).group_by(["game_id", "home_team", "guest_team", "is_home_win"]).agg([
+        pl.col("proba").mean()
+    ]).with_columns([
+        (pl.col("proba") >= threshold).alias("is_predicted_home_win")
+    ]).join(
+        schedule[["game_id", "date"]],
+        on="game_id"
+    ).with_columns(
+        pl.col("date").cast(pl.String)
+    )
+    return game_predictions

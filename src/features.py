@@ -1277,3 +1277,140 @@ def compute_travel(df) -> pl.DataFrame:
     )
 
     return result
+
+
+def add_rest_features(df):
+    """
+    Add rest and fatigue features: back-to-backs and recent game density.
+    """
+    df = df.sort("date")
+
+    # helper for team rest
+    team_dates = []
+    teams = sorted(set(df["home_team"].unique().to_list() + df["guest_team"].unique().to_list()))
+    for team in teams:
+        team_df = df.filter((pl.col("home_team") == team) | (pl.col("guest_team") == team)).select(
+            "date").unique().sort("date")
+        team_df = team_df.with_columns([
+            pl.lit(team).alias("team"),
+            (pl.col("date") - pl.col("date").shift(1)).dt.total_days().alias("days_rest")
+        ])
+        team_dates.append(team_df)
+
+    rest_df = pl.concat(team_dates)
+
+    # Process game density
+    density_list = []
+    for team in teams:
+        t_df = rest_df.filter(pl.col("team") == team)
+        dates = t_df["date"].to_list()
+
+        g3 = []
+        g5 = []
+        for d in dates:
+            # count games strictly before d
+            c3 = t_df.filter((pl.col("date") < d) & (pl.col("date") >= d - timedelta(days=3))).shape[0]
+            c5 = t_df.filter((pl.col("date") < d) & (pl.col("date") >= d - timedelta(days=5))).shape[0]
+            g3.append(c3)
+            g5.append(c5)
+
+        t_df = t_df.with_columns([
+            pl.Series("games_last_3_days", g3),
+            pl.Series("games_last_5_days", g5)
+        ])
+        density_list.append(t_df)
+
+    full_rest_df = pl.concat(density_list)
+
+    # Join for home team
+    df = df.join(
+        full_rest_df.rename({
+            "days_rest": "home_days_rest",
+            "games_last_3_days": "home_games_last_3_density",
+            "games_last_5_days": "home_games_last_5_density"
+        }),
+        left_on=["date", "home_team"],
+        right_on=["date", "team"],
+        how="left"
+    ).with_columns([
+        (pl.col("home_days_rest") == 1).alias("is_b2b_home")
+    ])
+
+    # Join for guest team
+    df = df.join(
+        full_rest_df.rename({
+            "days_rest": "guest_days_rest",
+            "games_last_3_days": "guest_games_last_3_density",
+            "games_last_5_days": "guest_games_last_5_density"
+        }),
+        left_on=["date", "guest_team"],
+        right_on=["date", "team"],
+        how="left"
+    ).with_columns([
+        (pl.col("guest_days_rest") == 1).alias("is_b2b_guest")
+    ])
+
+    return df
+
+
+def add_clutch_features(df, window_size=109):
+    """
+    Calculate performance in close games (diff <= 5).
+    """
+    df = df.sort("date")
+
+    # Identify clutch games and winner
+    df = df.with_columns([
+        (pl.col("pts_home") - pl.col("pts_guest")).abs().alias("point_diff")
+    ]).with_columns([
+        ((pl.col("point_diff") <= 5) & (pl.col("point_diff") > 0)).alias("is_clutch_game")
+    ])
+
+    team_clutch = []
+    all_teams = sorted(set(df["home_team"].unique().to_list() + df["guest_team"].unique().to_list()))
+
+    for team in all_teams:
+        t_df = df.filter((pl.col("home_team") == team) | (pl.col("guest_team") == team)).sort("date")
+
+        t_df = t_df.with_columns([
+            pl.when(pl.col("home_team") == team)
+            .then(pl.col("pts_home") > pl.col("pts_guest"))
+            .otherwise(pl.col("pts_guest") > pl.col("pts_home"))
+            .alias("is_team_win")
+        ])
+
+        # Calculate rolling clutch win pct
+        # We only care about games that WERE clutch
+        clutch_only = t_df.filter(pl.col("is_clutch_game"))
+        if clutch_only.shape[0] > 0:
+            t_df = t_df.join(
+                clutch_only.with_columns(
+                    pl.col("is_team_win").rolling_mean(
+                        window_size=window_size, min_samples=1
+                    ).alias("clutch_win_pct")
+                ).select(["game_id", "clutch_win_pct"]),
+                on="game_id",
+                how="left"
+            ).with_columns(
+                pl.col("clutch_win_pct").shift(1).forward_fill()
+            )
+        else:
+            t_df = t_df.with_columns(pl.lit(None).cast(pl.Float64).alias("clutch_win_pct"))
+
+        team_clutch.append(t_df.select(["date", pl.lit(team).alias("team"), "clutch_win_pct"]))
+
+    clutch_df = pl.concat(team_clutch).unique(["date", "team"])
+
+    df = df.join(
+        clutch_df.rename({"clutch_win_pct": "clutch_win_pct_home"}),
+        left_on=["date", "home_team"],
+        right_on=["date", "team"],
+        how="left"
+    ).join(
+        clutch_df.rename({"clutch_win_pct": "clutch_win_pct_guest"}),
+        left_on=["date", "guest_team"],
+        right_on=["date", "team"],
+        how="left"
+    ).drop("point_diff")
+
+    return df

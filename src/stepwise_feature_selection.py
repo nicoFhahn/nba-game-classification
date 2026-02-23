@@ -3,7 +3,7 @@ import pandas as pd
 import lightgbm as lgbm
 import shap
 from typing import List, Dict, Tuple, Literal
-from sklearn.model_selection import KFold
+from sklearn.model_selection import KFold, TimeSeriesSplit
 import warnings
 
 warnings.filterwarnings('ignore')
@@ -22,7 +22,8 @@ class LGBMStepwiseFeatureSelector:
             random_state: int = 234,
             verbose: bool = True,
             metric=None,
-            use_ensemble: bool = False
+            use_ensemble: bool = False,
+            cv_strategy: Literal['kfold', 'timeseries'] = 'kfold'
     ):
         """
         Initialize the feature selector.
@@ -35,9 +36,9 @@ class LGBMStepwiseFeatureSelector:
             - 'split': LightGBM's built-in split-based importance
             - 'shap': SHAP values (averaged across all samples)
         n_folds : int
-            Number of cross-validation folds
+            Number of cross-validation folds/splits
         random_state : int
-            Random state for reproducibility
+            Random state for reproducibility (not used for timeseries split)
         verbose : bool
             Whether to print progress information
         metric : callable or None
@@ -50,6 +51,11 @@ class LGBMStepwiseFeatureSelector:
             If True, uses an ensemble of tree-based models (LightGBM, XGBoost, CatBoost)
             to calculate feature importance. The importance scores are averaged across all models.
             If False, uses only LightGBM (default).
+        cv_strategy : str
+            Cross-validation strategy:
+            - 'kfold': Standard K-Fold cross-validation (shuffled, random splits)
+            - 'timeseries': TimeSeriesSplit (chronological splits, no shuffle)
+              Use this for time-series data like NBA games to prevent data leakage
         """
         self.importance_type = importance_type
         self.n_folds = n_folds
@@ -60,6 +66,7 @@ class LGBMStepwiseFeatureSelector:
         self.higher_is_better = True
         self.needs_proba = False
         self.use_ensemble = use_ensemble
+        self.cv_strategy = cv_strategy
         self.history_ = []
         self.best_features_ = None
         self.best_score_ = None
@@ -423,13 +430,17 @@ class LGBMStepwiseFeatureSelector:
         """
         X_subset = X[features]
 
-        kfold = KFold(n_splits=self.n_folds, shuffle=True, random_state=self.random_state)
+        # Choose CV strategy based on parameter
+        if self.cv_strategy == 'timeseries':
+            cv_splitter = TimeSeriesSplit(n_splits=self.n_folds)
+        else:  # 'kfold'
+            cv_splitter = KFold(n_splits=self.n_folds, shuffle=True, random_state=self.random_state)
 
         cv_scores = []
         models = []
         train_indices = []
 
-        for fold_idx, (train_idx, val_idx) in enumerate(kfold.split(X_subset)):
+        for fold_idx, (train_idx, val_idx) in enumerate(cv_splitter.split(X_subset)):
             X_train, X_val = X_subset.iloc[train_idx], X_subset.iloc[val_idx]
             y_train, y_val = y[train_idx], y[val_idx]
 
@@ -568,7 +579,8 @@ class LGBMStepwiseFeatureSelector:
             print(f"Importance method: {self.importance_type}")
             print(f"Model: {'Ensemble (LightGBM + XGBoost + CatBoost)' if self.use_ensemble else 'LightGBM'}")
             print(f"Optimization metric: {self.metric_name}")
-            print(f"Cross-validation folds: {self.n_folds}")
+            print(f"CV strategy: {self.cv_strategy.upper()}")
+            print(f"Number of splits: {self.n_folds}")
             print("=" * 80)
 
         while len(current_features) > 1:

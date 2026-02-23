@@ -32,7 +32,6 @@ def _():
 
     # Suppress LightGBM feature name warnings
     warnings.filterwarnings('ignore', message='.*does not have valid feature names.*')
-
     return (
         create_client,
         date,
@@ -69,15 +68,16 @@ def _(date, importlib, ml_helpers, supabase):
             use_weights= False,
             run_fs = True,
             n_trials = 300,
-            max_estimators=1500,
+            max_estimators=2000,
             n_jobs_optuna=6,
             output_dir=f"ensemble_{c.strftime('%Y%m%d')}",
-            random_state=2352,
-            use_ensemble=True
+            random_state=2389423842,
+            use_ensemble=True,
+            use_preprocessed_data=True
         )
     # need to verify data is in correct order
     # 0.698
-    # antigravity project and ask it to improve my feature generation
+    # antigravity project and ask it to improve my feature generation - test newly generated features
     return
 
 

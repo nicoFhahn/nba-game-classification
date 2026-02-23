@@ -27,7 +27,7 @@ def _():
 
     return (
         create_client,
-        features,
+        date,
         fetch_entire_table,
         json,
         load_pipeline,
@@ -48,130 +48,78 @@ def _(create_client, json, ml_helpers, secretmanager):
     key = payload_dict["postgres"]["api_key"]
     supabase=create_client(url, key)
     games, schedule, player_boxscore, elo = ml_helpers.load_data(supabase)
-    return (supabase,)
+    return elo, games, player_boxscore, schedule, supabase
 
 
 @app.cell
-def _(features, fetch_entire_table, json, load_pipeline, pl, supabase):
-    print("Loading prediction data")
-    schedule = fetch_entire_table(supabase, "schedule")
-    games = fetch_entire_table(supabase, "boxscore")
-    elo = fetch_entire_table(supabase, "elo")
-    predictions = fetch_entire_table(supabase, "predictions")
-    schedule = schedule.join(
-        games,
-        on="game_id",
-        how="left"
-    ).with_columns(
-        pl.col("date").str.to_date()
+def _(elo, games, ml_helpers, pl, player_boxscore, schedule):
+    preprocessed_data = ml_helpers.preprocess_data(games, schedule, player_boxscore, elo).with_columns(
+        pl.all().map_elements(
+            lambda x: None if x in (float("inf"), float("-inf")) else x
+        )
     )
-    print("Prediction data loaded")
-    newest_predictions = predictions.filter(
-        pl.col("is_home_win").is_null()
-    )
-    to_update = newest_predictions.drop("is_home_win").join(
-        games.with_columns([
-            (pl.col("pts_home") > pl.col("pts_guest")).alias("is_home_win")
-        ]).select([
-            "game_id", "is_home_win"
-        ]),
-        on="game_id"
-    ).to_dicts()
-    if len(to_update) > 0:
-        print("Updating newest predictions")
-        supabase.table("predictions").upsert(to_update).execute()
-    if newest_predictions.shape[0] > 0:
-        cutoff_date = newest_predictions["date"].str.to_date().max()
-    else:
-        cutoff_date = predictions["date"].str.to_date().max()
-    season_id = schedule.filter(
-        pl.col("date") == cutoff_date
-    )["season_id"][0]
-    season_schedule = schedule.filter(
-        pl.col("season_id") == season_id
-    ).sort("date").select([
-        "game_id", "date", "home_team", "guest_team", "pts_home", "pts_guest"
-    ]).with_columns([
-        (pl.col("pts_home") > pl.col("pts_guest")).alias("is_home_win")
-    ])
-    season_games = season_schedule.select(
-        "game_id", "date", "home_team", "guest_team"
-    ).join(
-        games,
-        on="game_id",
-        how="left"
-    )
-    teams = set(season_games["home_team"])
-    boxscore_dfs = [features.team_boxscores(season_games, team) for team in teams]
-    team_stats = [features.team_season_stats(boxscore_df) for boxscore_df in boxscore_dfs]
-    season_schedule = features.add_overall_winning_pct(season_schedule)
-    season_schedule = features.add_location_winning_pct(season_schedule)
-    season_schedule = features.h2h(season_schedule)
-    team_stats = pl.concat(team_stats)
-    joined = season_schedule.drop([
-        "date", "pts_home", "pts_guest",
-        "home_win", "guest_win"
-    ]).join(
-        team_stats.drop(["date", "is_win"]).rename(
-            lambda c: f"{c}_home"
-        ),
-        left_on=["game_id", "home_team"],
-        right_on=["game_id_home", "team_home"]
-    ).join(
-        team_stats.drop(["date", "is_win"]).rename(
-            lambda c: f"{c}_guest"
-        ),
-        left_on=["game_id", "guest_team"],
-        right_on=["game_id_guest", "team_guest"]
-    )
-    current_elo = elo.group_by("team_id").tail(1).select("team_id", "elo_after")
-    upcoming_games = joined.filter(
-        (pl.col("is_home_win").is_null()) &
-        (pl.col("wins_this_year_home_team").is_not_null()) &
-        (pl.col("wins_this_year_guest_team").is_not_null())
-    ).join(
-        current_elo.rename({
-            "elo_after": "elo_home"
-        }),
-        left_on="home_team",
-        right_on="team_id"
-    ).join(
-        current_elo.rename({
-            "elo_after": "elo_guest"
-        }),
-        left_on="guest_team",
-        right_on="team_id"
-    )
-    print("Loading ML Pipeline")
-    with open("bf.json", "r") as f:
+    return (preprocessed_data,)
+
+
+@app.cell
+def _(preprocessed_data):
+    preprocessed_data.write_parquet("preprocessed.parquet")
+    return
+
+
+@app.cell
+def _(json, load_pipeline):
+    with open("best_features_ensemble_20260201.json", "r") as f:
         bf = json.load(f)
-    saved = load_pipeline('ensemble_model_v2')
-    X = upcoming_games.select(bf["features"])
-    new_predictions = saved['ensemble'].predict_proba(X.to_numpy())
+    saved = load_pipeline('ensemble_20260201')
     threshold=saved['threshold']
-    pred_upcoming_games=upcoming_games.select([
+    return bf, saved, threshold
+
+
+@app.cell
+def _(bf, date, pl, preprocessed_data, saved):
+    df = preprocessed_data.filter(pl.col("date") >= date(2026, 2, 1))
+    y = preprocessed_data["is_home_win"]
+    X = preprocessed_data.select(bf["features"])
+    pred = saved["ensemble"].predict(X.to_numpy())
+    from sklearn.metrics import accuracy_score
+    accuracy_score(y, pred)
+    return (df,)
+
+
+@app.cell
+def _(fetch_entire_table, supabase):
+    predictions = fetch_entire_table(supabase, "predictions")
+    return (predictions,)
+
+
+@app.cell
+def _(bf, df, pl, predictions, saved):
+    missing = df.filter(~pl.col("game_id").is_in(predictions["game_id"].to_list()))
+    y2 = missing["is_home_win"]
+    X2 = missing.select(bf["features"])
+    pred2 = saved["ensemble"].predict_proba(X2.to_numpy())
+    return missing, pred2
+
+
+@app.cell
+def _(missing, pl, pred2, schedule, supabase, threshold):
+    supabase.table("predictions").insert(missing.select([
         "game_id", "home_team", "guest_team",
         "is_home_win"
     ]).with_columns([
         pl.Series(
             "proba",
-            new_predictions
+            pred2
         )
     ]).with_columns([
         (pl.col("proba") >= threshold).alias("is_predicted_home_win")
     ]).join(
-        season_schedule[["game_id", "date"]],
+        schedule[["game_id", "date"]],
         on="game_id"
     ).with_columns(
         pl.col("date").cast(pl.String)
-    ).filter(
-    ~pl.col("game_id").is_in(
-        ~pl.col("game_id").is_in(predictions["game_id"].to_list())
-    ))
-    print("Adding new predictions")
-    #supabase.table("predictions").insert(
-    #    pred_upcoming_games.to_dicts()
-    #).execute()
+    ).to_dicts()).execute()
     return
 
 

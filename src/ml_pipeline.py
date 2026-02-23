@@ -8,9 +8,10 @@ Comprehensive ML Pipeline with Optuna Optimization
 import numpy as np
 import pandas as pd
 from sklearn.ensemble import (
-    ExtraTreesClassifier, 
+    ExtraTreesClassifier,
     RandomForestClassifier,
-    HistGradientBoostingClassifier
+    HistGradientBoostingClassifier,
+    StackingClassifier
 )
 from sklearn.linear_model import LogisticRegression, SGDClassifier
 from sklearn.naive_bayes import GaussianNB, BernoulliNB
@@ -25,7 +26,7 @@ from sklearn.metrics import (
     roc_curve,
     log_loss
 )
-from sklearn.model_selection import cross_val_score, StratifiedKFold
+from sklearn.model_selection import cross_val_score, StratifiedKFold, TimeSeriesSplit, train_test_split
 import xgboost as xgb
 import lightgbm as lgb
 import catboost as cb
@@ -47,11 +48,21 @@ class ModelTuner:
     """Unified class for tuning all models with Optuna"""
 
     def __init__(self, X_train, y_train, cv_folds=5, random_state=42, max_estimators=1000,
-                 sample_weights=None, early_stopping=True, early_stopping_rounds=50):
+                 sample_weights=None, early_stopping=True, early_stopping_rounds=50,
+                 cv_strategy='stratified'):
         self.X_train = X_train
         self.y_train = y_train
-        self.cv = StratifiedKFold(n_splits=cv_folds, shuffle=True, random_state=random_state)
+
+        # Choose CV strategy
+        if cv_strategy == 'timeseries':
+            self.cv = TimeSeriesSplit(n_splits=cv_folds)
+            print(f"Using TimeSeriesSplit (timeseries) with {cv_folds} folds")
+        else:  # 'stratified' or default
+            self.cv = StratifiedKFold(n_splits=cv_folds, shuffle=True, random_state=random_state)
+            print(f"Using StratifiedKFold with {cv_folds} folds")
+
         self.cv_folds = cv_folds
+        self.cv_strategy = cv_strategy
         self.random_state = random_state
         self.max_estimators = max_estimators
         self.sample_weights = sample_weights
@@ -599,6 +610,107 @@ class WeightedEnsemble:
 
 
 # ============================================================================
+# PART 2B: STACKING ENSEMBLE (ALTERNATIVE TO WEIGHTED)
+# ============================================================================
+
+class StackingEnsemble:
+    """Stacking ensemble with meta-learner instead of weighted averaging"""
+
+    def __init__(self, models_dict, meta_learner='LogisticRegression', random_state=42, cv_folds=5):
+        """
+        Initialize stacking ensemble
+
+        Parameters:
+        -----------
+        models_dict : dict
+            Dictionary of trained base models {name: model}
+        meta_learner : str
+            Type of meta-learner: 'LogisticRegression', 'XGBoost', 'LightGBM'
+        random_state : int
+            Random seed
+        cv_folds : int
+            Number of CV folds for generating out-of-fold predictions
+        """
+        self.models_dict = models_dict
+        self.model_names = list(models_dict.keys())
+        self.random_state = random_state
+        self.cv_folds = cv_folds
+        self.meta_learner_type = meta_learner
+
+        # Create estimators list for StackingClassifier
+        estimators = [(name, model) for name, model in models_dict.items()]
+
+        # Create meta-learner
+        if meta_learner == 'LogisticRegression':
+            final_estimator = LogisticRegression(
+                random_state=random_state,
+                n_jobs=-1,
+                max_iter=1000
+            )
+        elif meta_learner == 'XGBoost':
+            final_estimator = xgb.XGBClassifier(
+                random_state=random_state,
+                tree_method='hist',
+                n_estimators=100,
+                max_depth=3,
+                learning_rate=0.1
+            )
+        elif meta_learner == 'LightGBM':
+            final_estimator = lgb.LGBMClassifier(
+                random_state=random_state,
+                verbose=-1,
+                n_estimators=100,
+                max_depth=3,
+                learning_rate=0.1
+            )
+        else:
+            raise ValueError(f"Unknown meta_learner: {meta_learner}. Use 'LogisticRegression', 'XGBoost', or 'LightGBM'")
+
+        # Create stacking classifier
+        self.stacking_clf = StackingClassifier(
+            estimators=estimators,
+            final_estimator=final_estimator,
+            cv=cv_folds,  # Internal CV for generating meta-features
+            n_jobs=-1,
+            passthrough=False  # Don't pass original features to meta-learner
+        )
+
+        self.is_fitted = False
+
+    def fit(self, X, y):
+        """Fit the stacking ensemble"""
+        print("\n" + "="*70)
+        print("TRAINING STACKING CLASSIFIER")
+        print("="*70)
+        print(f"Base models: {len(self.model_names)}")
+        print(f"  - {', '.join(self.model_names)}")
+        print(f"Meta-learner: {self.meta_learner_type}")
+        print(f"CV folds for meta-features: {self.cv_folds}")
+        print(f"Training data: {X.shape[0]} samples")
+
+        self.stacking_clf.fit(X, y)
+        self.is_fitted = True
+
+        # Evaluate on training data
+        train_proba = self.predict_proba(X)
+        train_auc = roc_auc_score(y, train_proba)
+        print(f"\nStacking training AUC: {train_auc:.4f}")
+
+        return self
+
+    def predict_proba(self, X):
+        """Predict probabilities"""
+        if not self.is_fitted:
+            raise ValueError("StackingEnsemble must be fitted before predicting")
+        return self.stacking_clf.predict_proba(X)[:, 1]
+
+    def predict(self, X, threshold=0.5):
+        """Predict classes with custom threshold"""
+        proba = self.predict_proba(X)
+        return (proba >= threshold).astype(int)
+
+
+# ============================================================================
 # PART 3: THRESHOLD OPTIMIZATION
 # ============================================================================
 
@@ -768,7 +880,10 @@ def main_pipeline(X_train, y_train, X_test, y_test, n_trials=100, max_estimators
                   threshold_metric='f1', n_jobs_optuna=1, random_state=42, optuna_verbosity=1,
                   output_dir=None, load_checkpoint=False, save_frequency='model',
                   use_weights=False, weight_decay=0.99, date_column=None,
-                  cv_folds=5, early_stopping=True, early_stopping_rounds=50):
+                  cv_folds=5, early_stopping=True, early_stopping_rounds=50,
+                  cv_strategy='stratified', use_meta_validation=False, meta_val_size=0.2,
+                  ensemble_method='weighted', stacking_meta_learner='LogisticRegression',
+                  models_to_train=None):
     """
     Complete ML pipeline
 
@@ -797,6 +912,26 @@ def main_pipeline(X_train, y_train, X_test, y_test, n_trials=100, max_estimators
                      Automatically finds optimal number of estimators. Makes training 2-5x faster.
     early_stopping_rounds : Number of rounds without improvement before stopping (default 50).
                             Only used if early_stopping=True.
+    cv_strategy : Cross-validation strategy ('stratified' or 'timeseries').
+                  - 'stratified': StratifiedKFold (default, good for i.i.d. data)
+                  - 'timeseries': TimeSeriesSplit (better for time-series data like sports)
+                  timeseries preserves temporal order - each fold trains on past, validates on future.
+    use_meta_validation : If True, splits training data into train + meta-validation.
+                          Meta-validation is held out during hyperparameter tuning and only used
+                          for ensemble weight optimization and threshold tuning. Prevents overfitting.
+                          Recommended for production models.
+    meta_val_size : Proportion of training data to use for meta-validation (default 0.2).
+                    Only used if use_meta_validation=True. Range: 0.1-0.3.
+    ensemble_method : Method for combining models ('weighted' or 'stacking').
+                      - 'weighted': Weighted average optimized with Optuna (fast, simple)
+                      - 'stacking': StackingClassifier with meta-learner (more powerful, slower)
+    stacking_meta_learner : Meta-learner for stacking ('LogisticRegression', 'XGBoost', 'LightGBM').
+                            Only used if ensemble_method='stacking'.
+    models_to_train : List of model names to train (default: ['LightGBM', 'ExtraTrees', 'XGBoost', 'CatBoost']).
+                      Available models: 'ExtraTrees', 'XGBoost', 'LightGBM', 'CatBoost',
+                      'HistGradientBoosting', 'LogisticRegression', 'SGDClassifier',
+                      'GaussianNB', 'BernoulliNB'
+                      Example: models_to_train=['XGBoost', 'LightGBM', 'LogisticRegression']
     """
 
     # Set up output directory
@@ -863,22 +998,72 @@ def main_pipeline(X_train, y_train, X_test, y_test, n_trials=100, max_estimators
     if len(y_test.shape) > 1:
         y_test = y_test.ravel()
 
-    # Split test set for validation (ensemble optimization) and final test
-    from sklearn.model_selection import train_test_split
-    X_val, X_test_final, y_val, y_test_final = train_test_split(
-        X_test, y_test, test_size=0.5, random_state=random_state, stratify=y_test
-    )
+    # ========================================================================
+    # META-VALIDATION SPLIT (if enabled)
+    # ========================================================================
+
+    if use_meta_validation:
+        print(f"\n{'='*70}")
+        print("META-VALIDATION SPLIT")
+        print(f"{'='*70}")
+        print(f"Splitting training data: {1-meta_val_size:.0%} for tuning, {meta_val_size:.0%} for meta-validation")
+        print(f"Strategy: {cv_strategy}")
+
+        if cv_strategy == 'timeseries':
+            # For timeseries, take last portion as meta-val
+            split_idx = int(len(X_train) * (1 - meta_val_size))
+            X_train_tune = X_train[:split_idx]
+            X_meta_val = X_train[split_idx:]
+            y_train_tune = y_train[:split_idx]
+            y_meta_val = y_train[split_idx:]
+
+            print(f"Using timeseries split: last {meta_val_size:.0%} as meta-validation")
+        else:
+            # For stratified, random split
+            X_train_tune, X_meta_val, y_train_tune, y_meta_val = train_test_split(
+                X_train, y_train,
+                test_size=meta_val_size,
+                random_state=random_state,
+                stratify=y_train
+            )
+            print(f"Using stratified random split")
+
+        print(f"\nTuning set: {len(X_train_tune)} samples")
+        print(f"Meta-validation set: {len(X_meta_val)} samples")
+        print(f"\nMeta-validation will be used ONLY for:")
+        print(f"  ✓ Ensemble weight optimization")
+        print(f"  ✓ Threshold optimization")
+        print(f"  ✗ NOT for hyperparameter tuning (prevents overfitting)")
+
+        # Use meta-val for ensemble/threshold
+        X_val_for_ensemble = X_meta_val
+        y_val_for_ensemble = y_meta_val
+
+        # Keep original test set for final evaluation
+        X_test_final = X_test
+        y_test_final = y_test
+
+    else:
+        # Original behavior: use all training data, split test set
+        X_train_tune = X_train
+        y_train_tune = y_train
+
+        # Split test set for validation (ensemble optimization) and final test
+        X_val_for_ensemble, X_test_final, y_val_for_ensemble, y_test_final = train_test_split(
+            X_test, y_test, test_size=0.5, random_state=random_state, stratify=y_test
+        )
 
     print(f"\n{'='*70}")
     print("DATASET INFORMATION")
     print(f"{'='*70}")
-    print(f"Training set: {X_train.shape[0]} samples, {X_train.shape[1]} features")
-    print(f"Validation set: {X_val.shape[0]} samples")
-    print(f"Test set: {X_test_final.shape[0]} samples")
-    print(f"Target distribution (train): {np.bincount(y_train)}")
+    print(f"Training set (for tuning): {X_train_tune.shape[0]} samples, {X_train_tune.shape[1]} features")
+    print(f"Validation set (for ensemble): {X_val_for_ensemble.shape[0]} samples")
+    print(f"Test set (final evaluation): {X_test_final.shape[0]} samples")
+    print(f"Target distribution (train): {np.bincount(y_train_tune)}")
 
     # Calculate sample weights if requested
     sample_weights = None
+    weights_for_tuning = None
     if use_weights:
         print(f"\n{'='*70}")
         print("CALCULATING SAMPLE WEIGHTS")
@@ -890,7 +1075,6 @@ def main_pipeline(X_train, y_train, X_test, y_test, n_trials=100, max_estimators
             print(f"Weight decay factor: {weight_decay}")
 
             # Convert dates to numeric (days since earliest date)
-            import pandas as pd
             dates_numeric = pd.to_datetime(dates_train)
             days_since_first = (dates_numeric - dates_numeric.min()).dt.days.values
 
@@ -933,8 +1117,27 @@ def main_pipeline(X_train, y_train, X_test, y_test, n_trials=100, max_estimators
 
         print(f"  Sum of weights: {sample_weights.sum():.0f} (normalized to sample count)")
 
+        # Split weights if using meta-validation
+        if use_meta_validation:
+            if cv_strategy == 'timeseries':
+                split_idx = int(len(sample_weights) * (1 - meta_val_size))
+                weights_for_tuning = sample_weights[:split_idx]
+            else:
+                # Need to track indices for stratified split
+                indices = np.arange(len(X_train))
+                train_idx, _ = train_test_split(
+                    indices,
+                    test_size=meta_val_size,
+                    random_state=random_state,
+                    stratify=y_train
+                )
+                weights_for_tuning = sample_weights[train_idx]
+        else:
+            weights_for_tuning = sample_weights
+
     else:
         print(f"\nSample weights: Not using (all samples weighted equally)")
+        weights_for_tuning = None
 
     # ========================================================================
     # STEP 1: Tune individual models
@@ -942,29 +1145,32 @@ def main_pipeline(X_train, y_train, X_test, y_test, n_trials=100, max_estimators
 
     # Load checkpoint if requested
     if load_checkpoint and output_path.exists():
-        tuner = ModelTuner.load_checkpoint(output_dir, X_train, y_train)
+        tuner = ModelTuner.load_checkpoint(output_dir, X_train_tune, y_train_tune)
         # Update sample weights if using weights now
         if use_weights:
-            tuner.sample_weights = sample_weights
+            tuner.sample_weights = weights_for_tuning
         # Update early stopping settings
         tuner.early_stopping = early_stopping
         tuner.early_stopping_rounds = early_stopping_rounds
+        tuner.cv_strategy = cv_strategy
         print(f"\nContinuing optimization with {n_trials} additional trials per model...")
     else:
         tuner = ModelTuner(
-            X_train, y_train,
+            X_train_tune, y_train_tune,
             cv_folds=cv_folds,
             random_state=random_state,
             max_estimators=max_estimators,
-            sample_weights=sample_weights,
+            sample_weights=weights_for_tuning,
             early_stopping=early_stopping,
-            early_stopping_rounds=early_stopping_rounds
+            early_stopping_rounds=early_stopping_rounds,
+            cv_strategy=cv_strategy
         )
 
     # Print configuration
     print(f"\n{'='*70}")
     print("TRAINING CONFIGURATION")
     print(f"{'='*70}")
+    print(f"Cross-validation strategy: {cv_strategy}")
     print(f"Cross-validation folds: {cv_folds}")
     print(f"Early stopping: {'Enabled' if early_stopping else 'Disabled'}")
     if early_stopping:
@@ -974,65 +1180,97 @@ def main_pipeline(X_train, y_train, X_test, y_test, n_trials=100, max_estimators
     print(f"Optuna trials per model: {n_trials}")
 
     # Determine which models to train
-    models_to_train = ['ExtraTrees', 'XGBoost', 'LightGBM', 'CatBoost']
-    #models_to_train = ["CatBoost"]
-    #,
-                      # 'LogisticRegression', 'SGDClassifier', 'GaussianNB', 'BernoulliNB']
-    
+    if models_to_train is None:
+        # Default: Fast, high-quality models
+        models_to_train = ['LightGBM', 'ExtraTrees', 'XGBoost', 'CatBoost']
+
+    print(f"\n{'='*70}")
+    print("MODELS TO TRAIN")
+    print(f"{'='*70}")
+    print(f"Selected models: {', '.join(models_to_train)}")
+    print(f"Number of models: {len(models_to_train)}")
+
+    # Validate model names
+    available_models = ['ExtraTrees', 'XGBoost', 'LightGBM', 'CatBoost', 'HistGradientBoosting',
+                        'LogisticRegression', 'SGDClassifier', 'GaussianNB', 'BernoulliNB']
+    invalid_models = [m for m in models_to_train if m not in available_models]
+    if invalid_models:
+        raise ValueError(f"Invalid model names: {invalid_models}. Available: {available_models}")
+
     # Tune models individually and save after each if requested
     for model_name in models_to_train:
         study = tuner.tune_model(model_name, n_trials=n_trials, n_jobs=n_jobs_optuna, optuna_verbosity=optuna_verbosity)
-        
+
         # Save checkpoint after each model if save_frequency is 'model'
         if save_frequency == 'model':
             tuner.save_checkpoint(output_dir)
-    
+
     # Store all studies
     studies = tuner.studies
-    
+
     # ========================================================================
     # STEP 2: Evaluate individual models
     # ========================================================================
-    individual_results = evaluate_models(tuner.best_models, X_val, y_val)
-    
+    individual_results = evaluate_models(tuner.best_models, X_val_for_ensemble, y_val_for_ensemble)
+
     # ========================================================================
-    # STEP 3: Build weighted ensemble
+    # STEP 3: Build ensemble (weighted or stacking)
     # ========================================================================
-    ensemble = WeightedEnsemble(tuner.best_models, X_val, y_val, random_state=random_state)
-    ensemble_study = ensemble.optimize_weights(n_trials=200, optuna_verbosity=optuna_verbosity)
-    
+
+    print(f"\n{'='*70}")
+    print(f"BUILDING ENSEMBLE: {ensemble_method.upper()}")
+    print(f"{'='*70}")
+
+    if ensemble_method == 'weighted':
+        ensemble = WeightedEnsemble(tuner.best_models, X_val_for_ensemble, y_val_for_ensemble, random_state=random_state)
+        ensemble_study = ensemble.optimize_weights(n_trials=200, optuna_verbosity=optuna_verbosity)
+
+    elif ensemble_method == 'stacking':
+        ensemble = StackingEnsemble(
+            tuner.best_models,
+            meta_learner=stacking_meta_learner,
+            random_state=random_state,
+            cv_folds=cv_folds
+        )
+        ensemble.fit(X_val_for_ensemble, y_val_for_ensemble)
+        ensemble_study = None  # No Optuna study for stacking
+
+    else:
+        raise ValueError(f"Unknown ensemble_method: {ensemble_method}. Use 'weighted' or 'stacking'")
+
     # Save ensemble
     if save_frequency in ['model', 'end']:
         ensemble_dir = output_path / 'ensemble'
         ensemble_dir.mkdir(parents=True, exist_ok=True)
         with open(ensemble_dir / 'ensemble.pkl', 'wb') as f:
             pickle.dump(ensemble, f)
-        with open(ensemble_dir / 'ensemble_study.pkl', 'wb') as f:
-            pickle.dump(ensemble_study, f)
-    
+        if ensemble_study is not None:
+            with open(ensemble_dir / 'ensemble_study.pkl', 'wb') as f:
+                pickle.dump(ensemble_study, f)
+
     # ========================================================================
     # STEP 4: Optimize threshold
     # ========================================================================
-    ensemble_proba = ensemble.predict_proba(X_val)
-    threshold_opt = ThresholdOptimizer(y_val, ensemble_proba)
-    
+    ensemble_proba = ensemble.predict_proba(X_val_for_ensemble)
+    threshold_opt = ThresholdOptimizer(y_val_for_ensemble, ensemble_proba)
+
     # Optimize for specified metric
     threshold_best, score_best = threshold_opt.optimize_threshold(threshold_metric)
-    
+
     # ========================================================================
     # STEP 5: Final evaluation on test set
     # ========================================================================
     print(f"\n{'='*70}")
     print("FINAL EVALUATION ON TEST SET")
     print(f"{'='*70}")
-    
+
     # Individual models
     final_results = evaluate_models(tuner.best_models, X_test_final, y_test_final, threshold=threshold_best)
-    
+
     # Ensemble with optimized threshold
     ensemble_proba_test = ensemble.predict_proba(X_test_final)
     ensemble_pred_test = (ensemble_proba_test >= threshold_best).astype(int)
-    
+
     print("\n" + "="*70)
     print(f"ENSEMBLE PERFORMANCE (threshold optimized for {threshold_metric.upper()})")
     print("="*70)
@@ -1043,13 +1281,13 @@ def main_pipeline(X_train, y_train, X_test, y_test, n_trials=100, max_estimators
     print(f"Recall: {recall_score(y_test_final, ensemble_pred_test):.4f}")
     print(f"F1-Score: {f1_score(y_test_final, ensemble_pred_test):.4f}")
     print(f"Log Loss: {log_loss(y_test_final, ensemble_proba_test):.4f}")
-    
+
     print("\nConfusion Matrix:")
     print(confusion_matrix(y_test_final, ensemble_pred_test))
-    
+
     print("\nClassification Report:")
     print(classification_report(y_test_final, ensemble_pred_test))
-    
+
     # ========================================================================
     # Save final results
     # ========================================================================
@@ -1059,12 +1297,12 @@ def main_pipeline(X_train, y_train, X_test, y_test, n_trials=100, max_estimators
         threshold_dir.mkdir(parents=True, exist_ok=True)
         with open(threshold_dir / 'threshold_optimizer.pkl', 'wb') as f:
             pickle.dump(threshold_opt, f)
-        
+
         # Save final results
         results_dir = output_path / 'results'
         results_dir.mkdir(parents=True, exist_ok=True)
         final_results.to_csv(results_dir / 'model_comparison.csv')
-        
+
         # Save final predictions
         predictions_df = pd.DataFrame({
             'y_true': y_test_final,
@@ -1072,7 +1310,7 @@ def main_pipeline(X_train, y_train, X_test, y_test, n_trials=100, max_estimators
             'y_proba': ensemble_proba_test
         })
         predictions_df.to_csv(results_dir / 'final_predictions.csv', index=False)
-        
+
         # Save configuration
         config = {
             'n_trials': n_trials,
@@ -1080,6 +1318,13 @@ def main_pipeline(X_train, y_train, X_test, y_test, n_trials=100, max_estimators
             'threshold_metric': threshold_metric,
             'n_jobs_optuna': n_jobs_optuna,
             'random_state': random_state,
+            'cv_strategy': cv_strategy,
+            'cv_folds': cv_folds,
+            'models_trained': models_to_train,
+            'use_meta_validation': use_meta_validation,
+            'meta_val_size': meta_val_size if use_meta_validation else None,
+            'ensemble_method': ensemble_method,
+            'stacking_meta_learner': stacking_meta_learner if ensemble_method == 'stacking' else None,
             'best_threshold': float(threshold_best),
             'final_roc_auc': float(roc_auc_score(y_test_final, ensemble_proba_test)),
             'final_accuracy': float(accuracy_score(y_test_final, ensemble_pred_test)),
@@ -1088,11 +1333,11 @@ def main_pipeline(X_train, y_train, X_test, y_test, n_trials=100, max_estimators
         }
         with open(output_path / 'final_config.json', 'w') as f:
             json.dump(config, f, indent=2)
-        
+
         print(f"\n{'='*70}")
         print(f"All results saved to: {output_path}")
         print(f"{'='*70}")
-    
+
     # ========================================================================
     # Return everything
     # ========================================================================
@@ -1117,12 +1362,12 @@ def main_pipeline(X_train, y_train, X_test, y_test, n_trials=100, max_estimators
 def load_pipeline(output_dir):
     """
     Load a complete saved pipeline for inference
-    
+
     Parameters:
     -----------
     output_dir : str
         Directory containing the saved pipeline
-    
+
     Returns:
     --------
     dict with:
@@ -1135,12 +1380,12 @@ def load_pipeline(output_dir):
         - predict_proba: helper function for safe probability predictions
     """
     output_path = Path(output_dir)
-    
+
     if not output_path.exists():
         raise FileNotFoundError(f"Output directory not found: {output_dir}")
-    
+
     print(f"\nLoading pipeline from: {output_path}")
-    
+
     # Load ensemble
     ensemble_path = output_path / 'ensemble' / 'ensemble.pkl'
     if ensemble_path.exists():
@@ -1150,7 +1395,7 @@ def load_pipeline(output_dir):
     else:
         ensemble = None
         print("✗ Ensemble not found")
-    
+
     # Load individual models
     models = {}
     models_dir = output_path / 'models'
@@ -1160,7 +1405,7 @@ def load_pipeline(output_dir):
             with open(model_file, 'rb') as f:
                 models[model_name] = pickle.load(f)
         print(f"✓ {len(models)} individual models loaded")
-    
+
     # Load best parameters
     params_path = output_path / 'best_params.json'
     if params_path.exists():
@@ -1169,7 +1414,7 @@ def load_pipeline(output_dir):
         print("✓ Best parameters loaded")
     else:
         best_params = {}
-    
+
     # Load configuration
     config_path = output_path / 'final_config.json'
     if config_path.exists():
@@ -1180,12 +1425,12 @@ def load_pipeline(output_dir):
     else:
         config = {}
         threshold = 0.5
-    
+
     # Create helper functions that auto-convert data
     def safe_predict(X, threshold=threshold, use_ensemble=True):
         """
         Predict classes with automatic data conversion
-        
+
         Parameters:
         -----------
         X : array-like, DataFrame
@@ -1194,7 +1439,7 @@ def load_pipeline(output_dir):
             Decision threshold
         use_ensemble : bool
             If True, use ensemble. If False, returns dict of individual model predictions.
-        
+
         Returns:
         --------
         predictions : array or dict
@@ -1204,7 +1449,7 @@ def load_pipeline(output_dir):
             X_np = X.to_numpy()
         else:
             X_np = X
-        
+
         if use_ensemble:
             if ensemble is None:
                 raise ValueError("Ensemble not available. Set use_ensemble=False to use individual models.")
@@ -1214,18 +1459,18 @@ def load_pipeline(output_dir):
             for name, model in models.items():
                 preds[name] = model.predict(X_np)
             return preds
-    
+
     def safe_predict_proba(X, use_ensemble=True):
         """
         Predict probabilities with automatic data conversion
-        
+
         Parameters:
         -----------
         X : array-like, DataFrame
             Features (will be auto-converted to numpy if needed)
         use_ensemble : bool
             If True, use ensemble. If False, returns dict of individual model probabilities.
-        
+
         Returns:
         --------
         probabilities : array or dict
@@ -1235,7 +1480,7 @@ def load_pipeline(output_dir):
             X_np = X.to_numpy()
         else:
             X_np = X
-        
+
         if use_ensemble:
             if ensemble is None:
                 raise ValueError("Ensemble not available. Set use_ensemble=False to use individual models.")
@@ -1245,7 +1490,7 @@ def load_pipeline(output_dir):
             for name, model in models.items():
                 probas[name] = model.predict_proba(X_np)[:, 1]
             return probas
-    
+
     return {
         'ensemble': ensemble,
         'models': models,

@@ -88,6 +88,8 @@ def preprocess_data(
         season_schedule = features.add_location_winning_pct(season_schedule)
         season_schedule = features.h2h(season_schedule)
         season_schedule = features.compute_travel(season_schedule)
+        season_schedule = features.add_rest_features(season_schedule)
+        season_schedule = features.add_clutch_features(season_schedule)
         team_stats = pl.concat(team_stats)
         joined = season_schedule.drop([
             "date", "pts_home", "pts_guest",
@@ -199,16 +201,25 @@ def run_pipeline(
         save_frequency: str = 'model',
         early_stopping=True,
         early_stopping_rounds=50,
-        use_ensemble: bool = True
+        use_ensemble: bool = True,
+        cv_strategy: str = "timeseries",
+        use_meta_validation: bool = True,
+        meta_val_size: float = 0.15,
+        ensemble_method: str = "stacking",
+        stacking_meta_learner: str = "LogisticRegression",
+        use_preprocessed_data: bool = False
 ):
-    games, schedule, player_boxscore, elo = load_data(supabase)
-    print("Data loaded")
-    preprocessed_data = preprocess_data(games, schedule, player_boxscore, elo).with_columns(
-        pl.all().map_elements(
-            lambda x: None if x in (float("inf"), float("-inf")) else x
+    if use_preprocessed_data:
+        preprocessed_data = pl.read_parquet("preprocessed.parquet")
+    else:
+        games, schedule, player_boxscore, elo = load_data(supabase)
+        print("Data loaded")
+        preprocessed_data = preprocess_data(games, schedule, player_boxscore, elo).with_columns(
+            pl.all().map_elements(
+                lambda x: None if x in (float("inf"), float("-inf")) else x
+            )
         )
-    )
-    print("Data preprocessed")
+        print("Data preprocessed")
     X_train, y_train, X_test, y_test = train_test(
         preprocessed_data, cutoff_date, train_size
     )
@@ -221,7 +232,8 @@ def run_pipeline(
             random_state=random_state,
             verbose=True,
             metric=metric,
-            use_ensemble=use_ensemble
+            use_ensemble=use_ensemble,
+            cv_strategy=cv_strategy
         )
         selector.fit(
             X_train.drop("date").to_numpy(),
@@ -266,7 +278,13 @@ def run_pipeline(
         date_column='date',
         cv_folds=n_folds,
         early_stopping=early_stopping,
-        early_stopping_rounds=early_stopping_rounds
+        early_stopping_rounds=early_stopping_rounds,
+        cv_strategy=cv_strategy,
+        use_meta_validation=use_meta_validation,
+        meta_val_size=meta_val_size,
+        stacking_meta_learner=stacking_meta_learner,
+        ensemble_method=ensemble_method,
+        models_to_train=['XGBoost', 'LightGBM', 'CatBoost']
     )
     saved = ml_pipeline.load_pipeline(output_dir)
     return saved

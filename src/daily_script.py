@@ -14,6 +14,7 @@ def _():
     from google.cloud import secretmanager
     from supabase import create_client
     from supabase_helper import fetch_entire_table, fetch_filtered_table
+    from ml_pipeline import load_pipeline
 
     import importlib
     import polars as pl
@@ -23,9 +24,9 @@ def _():
         bbref,
         create_client,
         elo_rating,
-        importlib,
+        fetch_entire_table,
         json,
-        pl,
+        load_pipeline,
         predictions,
         secretmanager,
     )
@@ -84,38 +85,29 @@ def _(predictions, supabase):
 
 
 @app.cell
-def _(importlib, predictions, supabase):
-    importlib.reload(predictions)
+def _(predictions, supabase):
     games_to_predict = predictions.upcoming_game_data(supabase)
-    return
+    return (games_to_predict,)
 
 
 @app.cell
-def _(final_df, json, load_pipeline, pl, season_schedule):
-    with open("best_features_ensemble_20260201.json", "r") as f:
-        bf = json.load(f)
-    saved = load_pipeline('ensemble_20260201')
-    X = final_df.select(bf["features"])
-    new_predictions = saved['ensemble'].predict_proba(X.to_numpy())
-    threshold=saved['threshold']
-    pred_upcoming_games=final_df.select([
-        "game_id", "home_team", "guest_team",
-        "is_home_win"
-    ]).with_columns([
-        pl.Series(
-            "proba",
-            new_predictions
-        )
-    ]).group_by(["game_id", "home_team", "guest_team", "is_home_win"]).agg([
-        pl.col("proba").mean()
-    ]).with_columns([
-        (pl.col("proba") >= threshold).alias("is_predicted_home_win")
-    ]).join(
-        season_schedule[["game_id", "date"]],
-        on="game_id"
-    ).with_columns(
-        pl.col("date").cast(pl.String)
-    )
+def _(
+    fetch_entire_table,
+    games_to_predict,
+    json,
+    load_pipeline,
+    predictions,
+    supabase,
+):
+    if games_to_predict != None:
+        with open("best_features_ensemble_20260201.json", "r") as f:
+            bf = json.load(f)["features"]
+        pipe = load_pipeline('ensemble_20260201')
+        mod = pipe["ensemble"]
+        threshold=pipe['threshold']
+        schedule = fetch_entire_table(supabase, "schedule")
+        upcoming_predictions = predictions.predict_upcoming_games(games_to_predict, mod, bf, threshold, schedule)
+        supabase.table("predictions").insert(upcoming_predictions.to_dicts()).execute()
     return
 
 
