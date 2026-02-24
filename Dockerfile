@@ -28,5 +28,5 @@ RUN uv pip install --no-cache --system -r requirements.txt
 COPY . .
 
 # 6. Set the entry point to your main script
-CMD ["python", "daily_bbref_nb.py"]
+CMD ["python", "daily_script.py"]
 
