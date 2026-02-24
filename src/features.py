@@ -1065,7 +1065,7 @@ def player_season_stats(df, window_sizes = [7, 109]):
         "fta_per_fga_pct", "tov_pct"
     ]
     dropped_cols = ["ts_pct", "efg_pct", "pf"]
-    df = df.drop(["id", "player_name"]).with_columns([
+    df = df.with_columns([
         pl.col(c).shift(1).over(pl.col("player_id")).alias(f'{c}_previous_game')
         for c in absolute_columns + per_100_columns
     ]).with_columns([

@@ -4,7 +4,7 @@ from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from datetime import date, timedelta
 from tqdm import tqdm
-from supabase_helper import fetch_entire_table, fetch_distinct_column, fetch_distinct_column_in, fetch_month_data
+from supabase_helper import fetch_entire_table, fetch_month_data, fetch_distinct_column_filtered
 
 import time
 import polars as pl
@@ -19,7 +19,7 @@ def start_driver():
     options.add_argument('--headless')
     options.add_argument('--no-sandbox')
     options.add_argument('--disable-dev-shm-usage')
-    options.add_argument('--incognito')  # Fresh session each time
+    options.add_argument('--incognito')
     options.add_argument('user-agent=Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36')
 
     driver = webdriver.Chrome(options=options)
@@ -137,21 +137,20 @@ def scrape_game(game_url, home_abbrev, guest_abbrev, game_id, driver, supabase):
     )
     exists = bool(response.data)
     if not exists:
-        # Retry driver.get() until it succeeds
         max_retries = 3
-        retry_delay = 1800  # seconds
+        retry_delay = 1800
 
         for attempt in range(max_retries):
             try:
                 driver.get(game_url)
-                break  # Success, exit the retry loop
+                break
             except Exception as e:
                 if attempt < max_retries - 1:
                     print(f"Attempt {attempt + 1} failed: {e}. Retrying in {retry_delay} seconds...")
                     time.sleep(retry_delay)
                 else:
                     print(f"Failed to load {game_url} after {max_retries} attempts")
-                    raise  # Re-raise the exception after all retries exhausted
+                    raise
 
         wait = WebDriverWait(driver, 10)
 
@@ -213,39 +212,32 @@ def scrape_game(game_url, home_abbrev, guest_abbrev, game_id, driver, supabase):
 def scrape_player_table_stats(table_id, driver):
     table = driver.find_element(By.ID, table_id)
 
-    # Get column names from thead
     thead = table.find_element(By.TAG_NAME, "thead")
     thead_rows = thead.find_elements(By.TAG_NAME, "tr")
     header_cells = thead_rows[1].find_elements(By.TAG_NAME, "th")[1:]
     column_names = [cell.get_attribute("data-stat") for cell in header_cells]
 
-    # Get team stats from tfoot
     tfoot = table.find_element(By.TAG_NAME, "tfoot")
     tfoot_rows = tfoot.find_elements(By.TAG_NAME, "tr")
     stat_cells = tfoot_rows[0].find_elements(By.TAG_NAME, "td")
     stat_values = [cell.text.strip() for cell in stat_cells]
     team_stats = dict(zip(column_names, stat_values))
 
-    # Get player stats from tbody
     tbody = table.find_element(By.TAG_NAME, "tbody")
     player_rows = tbody.find_elements(By.TAG_NAME, "tr")
 
     players_stats = []
     for row in player_rows:
-        # Skip rows that don't have the standard structure (e.g., section headers)
         if not row.find_elements(By.TAG_NAME, "td"):
             continue
 
-        # Get player_id and player_name from the first th element
         first_th = row.find_element(By.TAG_NAME, "th")
         player_id = first_th.get_attribute("data-append-csv")
         player_name = first_th.text.strip()
 
-        # Get all stat values from td elements
         stat_cells = row.find_elements(By.TAG_NAME, "td")
         stat_values = [cell.text.strip() for cell in stat_cells]
 
-        # Create player stats dict
         player_stats = dict(zip(column_names, stat_values))
         player_stats['player_id'] = player_id
         player_stats['player_name'] = player_name
@@ -263,14 +255,22 @@ def update_current_month(supabase, driver):
     year = date.today().year + (date.today().month >= 10)
     month_number = d.month
     month_name = calendar.month_name[month_number].lower()
-    schedule_current_month = fetch_month_data(
-        supabase, "schedule", d, date_column='date', page_size=1000
+    
+    # Step 1: Fetch existing game_ids and game_urls from Supabase for this month
+    # This localized comparison is more reliable than remote filtering for complex null/empty checks
+    required_columns = ["game_id", "game_url"]
+    existing_month_data = fetch_month_data(
+        supabase, "schedule", d, date_column='date', page_size=1000, columns=required_columns
     )
-    print("fetched current month from supabase")
+    print(f"Fetched {len(existing_month_data)} existing games for the current month from Supabase")
+
+    # Step 2: Scrape the full month from BBRef
     link = f"https://www.basketball-reference.com/leagues/NBA_{year}_games-{month_name}.html"
-    current_month = scrape_month(link, driver)
-    print("fetched current month from bbref")
-    current_month = current_month.rename({
+    scraped_month = scrape_month(link, driver)
+    print(f"Scraped {len(scraped_month)} games from BBRef")
+    
+    # Prepare scraped data for comparison
+    scraped_prepared = scraped_month.rename({
         "Date": "date",
         "Home": "home_team",
         "Visitor": "guest_team",
@@ -278,28 +278,44 @@ def update_current_month(supabase, driver):
     }).with_columns([
         pl.lit(year).alias("season_id"),
         pl.lit(False).alias("is_scraped")
-    ])[schedule_current_month.columns]
-    response = (
-        supabase
-        .table('schedule')
-        .delete()
-        .in_('game_id', schedule_current_month["game_id"].to_list())
-        .execute()
-    )
-    print("deleted old data")
-    supabase.table('schedule').insert(
-        current_month.with_columns(
-            pl.col("date").cast(pl.String)
-        ).to_dicts()
-    ).execute()
-    print("inserted new data")
+    ])
+
+    # Step 3: Identify what needs updating
+    if existing_month_data.is_empty():
+        # Entire month is missing, upsert everything
+        to_upsert = scraped_prepared
+    else:
+        # Join existing data with scraped data to compare game_urls
+        joined = scraped_prepared.join(
+            existing_month_data.rename({"game_url": "existing_url"}),
+            on="game_id",
+            how="left"
+        )
+        
+        # New games (not in Supabase) OR games where the scraped URL is now present but was missing in Supabase
+        to_upsert = joined.filter(
+            pl.col("existing_url").is_null() | 
+            ((pl.col("game_url") != "") & (pl.col("existing_url") == ""))
+        ).drop("existing_url")
+
+    # Step 4: Perform targeted upsert
+    if not to_upsert.is_empty():
+        print(f"Upserting {len(to_upsert)} games (new records or new URLs)")
+        supabase.table('schedule').upsert(
+            to_upsert.with_columns(
+                pl.col("date").cast(pl.String)
+            ).to_dicts()
+        ).execute()
+        print("Upsert completed successfully")
+    else:
+        print("No updates needed for the current month")
+        
     driver.quit()
 
 
 def _process_player_df(raw, cols_to_cast_end):
-    """Parse a raw scrape_player_table_stats result into a typed Polars DataFrame."""
     df = pl.DataFrame(raw["players_stats"])
-    col_names = df.columns  # capture before any transformation
+    col_names = df.columns
     df = df.with_columns(
         pl.col("mp").str.split(":").list.eval(
             pl.element().first().cast(pl.Float64, strict=False) +
@@ -312,32 +328,37 @@ def _process_player_df(raw, cols_to_cast_end):
 
 
 def scrape_missing_boxscores(supabase):
-    """
-    Combined replacement for scrape_missing_team_boxscores and scrape_missing_player_boxscores.
-
-    Fetches the schedule and both existing boxscore tables once per loop iteration,
-    then visits each game page at most once — scraping team stats, player stats, or
-    both depending on which table(s) are still missing that game_id.
-    Results are saved to the original separate tables ("boxscore" and "player-boxscore").
-    """
     driver = None
     while True:
         try:
-            # --- Single pass to determine what is missing ---
-            schedule = fetch_entire_table(supabase, "schedule").sort("game_id")
-
-            # Scope to the current season only — past seasons are already fully scraped
-            max_season_id = schedule["season_id"].max()
-            current_season = schedule.filter(pl.col("season_id") == max_season_id)
-            current_season_game_ids = current_season["game_id"].to_list()
-
-            # Targeted queries: only check the current season's game_ids in both tables
-            # instead of paging through every row ever inserted
-            existing_team_ids = set(
-                fetch_distinct_column_in(supabase, "boxscore", "game_id", "game_id", current_season_game_ids)
+            # Step 1: Find the current season_id (minimal egress)
+            max_season_response = (
+                supabase.table("schedule")
+                .select("season_id")
+                .order("season_id", desc=True)
+                .limit(1)
+                .execute()
             )
+            if not max_season_response.data:
+                print("No games found in schedule.")
+                break
+            max_season_id = max_season_response.data[0]["season_id"]
+
+            # Step 2: Fetch only the current season's schedule (optimized egress)
+            schedule_columns = ["game_id", "season_id", "game_url", "home_abbrev", "guest_abbrev", "home_team", "guest_team"]
+            current_season = fetch_entire_table(
+                supabase, 
+                "schedule", 
+                columns=schedule_columns,
+                filter_func=lambda q: q.eq("season_id", max_season_id)
+            ).sort("game_id")
+
+            existing_team_ids = set(
+                fetch_distinct_column_filtered(supabase, "get_distinct_game_ids_by_season", max_season_id)
+            )
+            
             existing_player_ids = set(
-                fetch_distinct_column(supabase, "get_distinct_game_ids")
+                fetch_distinct_column_filtered(supabase, "get_distinct_player_game_ids_by_season", max_season_id)
             )
 
             missing_games = current_season.filter(
@@ -356,7 +377,6 @@ def scrape_missing_boxscores(supabase):
             driver = start_driver()
 
             for i, row in enumerate(tqdm(missing_games.to_dicts(), ncols=100)):
-                # Restart driver every 50 iterations to avoid memory bloat
                 if i > 0 and i % 50 == 0:
                     driver.quit()
                     time.sleep(2)
@@ -373,9 +393,8 @@ def scrape_missing_boxscores(supabase):
                 guest_id_advanced = f"box-{guest_abbrev}-game-advanced"
 
                 max_retries = 30
-                retry_delay = 60  # seconds
+                retry_delay = 60
 
-                # --- Load the page ---
                 for attempt in range(max_retries):
                     try:
                         driver.get(row["game_url"])
@@ -388,7 +407,6 @@ def scrape_missing_boxscores(supabase):
                             print(f"Failed to load {row['game_url']} after {max_retries} attempts")
                             raise
 
-                # --- Wait for tables, scrape, and insert ---
                 scrape_success = False
                 for attempt in range(max_retries):
                     try:
@@ -401,7 +419,6 @@ def scrape_missing_boxscores(supabase):
                         wait.until(EC.presence_of_element_located((By.ID, home_id_advanced)))
                         wait.until(EC.presence_of_element_located((By.ID, guest_id_advanced)))
 
-                        # --- Team boxscore ---
                         if needs_team:
                             home_stats_basic = pl.DataFrame(scrape_table_stats(home_id_basic, driver))
                             home_stats_basic = home_stats_basic.with_columns([
@@ -450,7 +467,6 @@ def scrape_missing_boxscores(supabase):
                                         print(f"Database error (team boxscore): {e}")
                                         raise
 
-                        # --- Player boxscore ---
                         if needs_player:
                             res_home_basic = scrape_player_table_stats(home_id_basic, driver)
                             res_home_advanced = scrape_player_table_stats(home_id_advanced, driver)
@@ -503,7 +519,7 @@ def scrape_missing_boxscores(supabase):
                                         raise
 
                         scrape_success = True
-                        break  # Exit the scrape-retry loop on success
+                        break
 
                     except (TimeoutException, WebDriverException) as e:
                         error_text = str(e)
@@ -532,7 +548,7 @@ def scrape_missing_boxscores(supabase):
 
             driver.quit()
             driver = None
-            break  # All games processed successfully
+            break
 
         except Exception as e:
             print(f"\n{'=' * 80}")
@@ -564,10 +580,8 @@ def scrape_current_roster(team_id, driver):
             driver.get(team_url)
             wait = WebDriverWait(driver, 10)
 
-            # 1. Wait for the main roster table (This must exist)
             roster_table = wait.until(EC.presence_of_element_located((By.ID, "roster")))
 
-            # Extract Roster Data
             player_names = []
             player_ids = []
             player_tbody = roster_table.find_element(By.TAG_NAME, "tbody")
@@ -577,7 +591,6 @@ def scrape_current_roster(team_id, driver):
                 cells = row.find_elements(By.TAG_NAME, "td")
                 if not cells:
                     continue
-                # The first <td> usually contains the name link
                 link_element = cells[0].find_element(By.TAG_NAME, "a")
                 player_names.append(link_element.text)
                 p_id = link_element.get_attribute("href").split("/")[-1].split(".html")[0]
@@ -588,8 +601,6 @@ def scrape_current_roster(team_id, driver):
                 "player_id": player_ids
             })
 
-            # 2. Handle Injury Table (Optional - might not be on page)
-            # We use find_elements (plural) so it returns an empty list instead of crashing if not found
             injury_elements = driver.find_elements(By.ID, "injuries")
 
             if injury_elements:
@@ -601,7 +612,6 @@ def scrape_current_roster(team_id, driver):
                 player_ids_injuries = []
 
                 for row in injury_rows:
-                    # Injuries often use <th> for the name link
                     name_link = row.find_element(By.TAG_NAME, "th").find_element(By.TAG_NAME, "a")
                     p_id_inj = name_link.get_attribute("href").split("/")[-1].split(".html")[0]
                     player_ids_injuries.append(p_id_inj)
@@ -614,13 +624,11 @@ def scrape_current_roster(team_id, driver):
                     "injury": player_injuries
                 })
             else:
-                # Create an empty DF with correct types if no injuries found
                 injury_df = pl.DataFrame({
                     "player_id": pl.Series([], dtype=pl.Utf8),
                     "injury": pl.Series([], dtype=pl.Utf8)
                 })
 
-            # 3. Join and Return
             current_roster = roster_df.join(
                 injury_df,
                 on="player_id",
@@ -637,6 +645,5 @@ def scrape_current_roster(team_id, driver):
             print(f"Attempt {attempts} failed for {team_id}: {e}. Retrying in {wait_time}s...")
             time.sleep(wait_time)
 
-    # If the loop finishes without returning
     print(f"Max retries reached for {team_id}. Returning empty DataFrame.")
     return pl.DataFrame()

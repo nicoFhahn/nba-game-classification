@@ -1,4 +1,4 @@
-from supabase_helper import fetch_filtered_table
+from supabase_helper import fetch_distinct_column_filtered, fetch_entire_table
 from typing import Union, List
 import polars as pl
 import uuid
@@ -6,11 +6,6 @@ import uuid
 def get_team_schedules(
         df: pl.DataFrame
 ) -> List[pl.DataFrame]:
-    """
-    Gets individual schedules for all the teams
-    :param df: A seasons schedule
-    :return: A list containing each teams games / schedule
-    """
     team_ids = sorted(list(set(df['home_team_id']).union(set(df['guest_team_id']))))
     team_schedules = [
         df.filter(
@@ -26,12 +21,6 @@ def expected_outcome(
         elo_team: float,
         elo_opponent: float
 ) -> float:
-    """
-    Calculates the expected outcome based on the elo scores
-    :param elo_team: elo of team 1
-    :param elo_opponent: elo of team 2
-    :return: float value of expected outcome
-    """
     return 1 / (1 + 10 ** ((elo_opponent - elo_team) / 400))
 
 
@@ -39,12 +28,6 @@ def mov_multiplier(
         mov: float,
         elo_diff: float
 ) -> float:
-    """
-    calculates the margin of victory multiplier
-    :param mov: margin of victory
-    :param elo_diff: absolute difference in elo values
-    :return: the multipler as a float
-    """
     return ((mov + 3) ** 0.8) / (7.5 + 0.006 * elo_diff)
 
 
@@ -54,15 +37,6 @@ def elo_season(
         k_factor: int = 20,
         home_court_advantage: int = 100
 ) -> pl.DataFrame:
-    """
-    Calculates the elo rating of team through a season
-    :param df: games of the season
-    :param initial_elo: either initial int value to use as starting point or dataframe
-    containing the elo scores from the previous season
-    :param k_factor: k-value (20 based on 538 article)
-    :param home_court_advantage: factor for homecourt advantage (100 based on 538 article)
-    :return: df containing the elo before and after each game for each team
-    """
     elo_ratings = {}
     team_ids = sorted(list(set(df['home_team_id'])))
 
@@ -111,16 +85,71 @@ def elo_season(
     return elo_df
 
 def elo_update(supabase):
-    schedule_current_season, games_current_season = fetch_filtered_table(
-        supabase, "schedule", "boxscore", "season_id", "game_id"
+    # Step 1: Find the current season_id (minimal egress)
+    max_season_response = (
+        supabase.table("schedule")
+        .select("season_id")
+        .order("season_id", desc=True)
+        .limit(1)
+        .execute()
     )
-    schedule_current_season, elo_current_season = fetch_filtered_table(
-        supabase, "schedule", "elo", "season_id", "game_id"
+    if not max_season_response.data:
+        print("No games found in schedule.")
+        return
+    max_season_id = max_season_response.data[0]["season_id"]
+
+    # Step 2: Get IDs of games that have boxscores for this season (RPC filter)
+    ids_with_boxscores = fetch_distinct_column_filtered(
+        supabase, "get_distinct_game_ids_by_season", max_season_id
     )
-    schedule_last_season, elo_last_season = fetch_filtered_table(
-        supabase, "schedule", "elo", "season_id", "game_id",
-        schedule_current_season["season_id"][0] - 1
+
+    # Step 3: Get games already in Elo table for current season (RPC filter)
+    # Using the user's suggested RPC name: get_distinct_elo_ids_by_season
+    ids_with_elo = fetch_distinct_column_filtered(
+        supabase, "get_distinct_elo_ids_by_season", max_season_id
     )
+    
+    # Step 4: Early Exit if no new games need Elo calculation
+    missing_ids = set(ids_with_boxscores) - set(ids_with_elo)
+    if not missing_ids:
+        print("No new boxscores found since last Elo update. Skipping...")
+        return
+
+    # Step 5: Fetch only required columns for current season games with boxscores
+    # We need all games for the season to calculate Elo correctly in sequence
+    schedule_current_season = fetch_entire_table(
+        supabase, "schedule", 
+        columns=["game_id", "date", "season_id", "home_team", "guest_team"],
+        filter_func=lambda q: q.in_("game_id", ids_with_boxscores)
+    )
+    
+    games_current_season = fetch_entire_table(
+        supabase, "boxscore",
+        columns=["game_id", "pts_home", "pts_guest"],
+        filter_func=lambda q: q.in_("game_id", ids_with_boxscores)
+    )
+
+    elo_current_season = pl.DataFrame({"game_id": ids_with_elo})
+
+    # Step 6: Fetch last season's end Elo
+    last_season_id = max_season_id - 1
+    
+    # Fetch end-of-season records from last season
+    # We can use fetch_filtered_table here as it's already somewhat optimized for season
+    # Or just use fetch_entire_table with filter
+    schedule_last_season = fetch_entire_table(
+        supabase, "schedule",
+        columns=["game_id", "date"],
+        filter_func=lambda q: q.eq("season_id", last_season_id)
+    )
+    
+    last_season_game_ids = schedule_last_season["game_id"].to_list()
+    elo_last_season = fetch_entire_table(
+        supabase, "elo",
+        columns=["game_id", "team_id", "elo_after"],
+        filter_func=lambda q: q.in_("game_id", last_season_game_ids)
+    )
+
     games_w_schedule_current_season = schedule_current_season.select([
         "game_id", "date", "season_id", "home_team", "guest_team"
     ]).join(
@@ -134,22 +163,26 @@ def elo_update(supabase):
         "home_team": "home_team_id",
         "guest_team": "guest_team_id",
     })
+    
     elo_w_schedule_last_season = elo_last_season.join(
         schedule_last_season[["game_id", "date"]],
         on="game_id"
     ).with_columns(
         pl.col("date").str.to_date()
     )
+    
     elo_current_season_updated = elo_season(
         games_w_schedule_current_season, elo_w_schedule_last_season
     ).filter(
         ~pl.col("game_id").is_in(elo_current_season["game_id"].to_list())
     ).drop("date")
+    
     elo_current_season_updated = elo_current_season_updated.with_columns(
         pl.Series("id", [str(uuid.uuid4()) for _ in range(len(elo_current_season_updated))])
     ).to_dicts()
+    
     if len(elo_current_season_updated) > 0:
-        print("Updating elo")
+        print(f"Updating elo with {len(elo_current_season_updated)} new records")
         supabase.table("elo").insert(elo_current_season_updated).execute()
     else:
         print("No Elo Update required")
