@@ -112,7 +112,7 @@ def update_team_records(supabase):
 def update_existing_predictions(supabase):
     # Step 1: Find predictions missing results
     predictions = fetch_entire_table(
-        supabase, "predictions", 
+        supabase, "prediction-comparison",
         columns=["game_id", "is_home_win"],
         filter_func=lambda q: q.is_("is_home_win", "null")
     )
@@ -159,7 +159,7 @@ def update_existing_predictions(supabase):
     
     if len(to_update) > 0:
         print(f"Updating {len(to_update)} predictions with results")
-        supabase.table("predictions").upsert(to_update).execute()
+        supabase.table("prediction-comparison").upsert(to_update).execute()
     else:
         print("No new results for predictions")
 
@@ -227,7 +227,7 @@ def upcoming_game_data(supabase):
     current_boxscore_ids = pl.DataFrame({"game_id": ids_with_boxscores})
     
     games_to_predict = upcoming_games(current_season, current_boxscore_ids)
-    current_predictions = fetch_entire_table(supabase, "predictions", columns=["game_id"])
+    current_predictions = fetch_entire_table(supabase, "prediction-comparison", columns=["game_id"])
     
     games_to_predict = games_to_predict.filter(
         ~pl.col("game_id").is_in(current_predictions["game_id"].to_list()),
@@ -305,7 +305,7 @@ def upcoming_game_data(supabase):
     
     joined = season_schedule.drop([
         "date", "pts_home", "pts_guest",
-        "home_win", "guest_win", "latitude", "longitude"
+        "latitude", "longitude"
     ]).join(
         team_stats.drop(["date", "is_win"]).rename(
             lambda c: f"{c}_home"
@@ -416,56 +416,59 @@ def upcoming_game_data(supabase):
     )
     return final_df
 
-def predict_upcoming_games(df, supabase, API_URL):
-    feature_resp = requests.get(f"{API_URL}/best_features")
-    best_features = feature_resp.json()["features"]
-    schedule = fetch_entire_table(
-        supabase, "schedule",
-        columns=["game_id", "date"],
-        filter_func=lambda q: q.in_("game_id", df["game_id"].to_list())
-    )
-    response = requests.get(
-        f"{API_URL}/health"
-    )
-    if response.status_code == 200:
-        threshold = response.json()["threshold"]
-    else:
-        print(f"Error: {response.status_code}")
-        print(response.text)
+def predict_upcoming_games(
+        df,
+        best_features,
+        models
+):
     X = df.select(best_features)
-    features_batch = X.to_numpy().tolist()
-    response = requests.post(
-        f"{API_URL}/predict_batch",
-        json={"features": features_batch}
-    )
-    if response.status_code == 200:
-        result = response.json()
-        
-        # Your predictions
-        prediction = np.array(result['predictions'])
-        probability = np.array(result['probabilities'])
-        
-        print(f"✓ Predicted {len(prediction)} games")
-        print(f"Predictions: {prediction}")
-    else:
-        print(f"Error: {response.status_code}")
-        print(response.text)
+    catboost_pred = models["catboost"].predict_proba(X)
+    lgbm_pred = models["lgbm"].predict_proba(X)
+    xgb_pred = models["xgb"].predict_proba(X)
+    extra_pred = models["extra"].predict_proba(X)
+    ensemble_pred = models["ensemble"].predict_proba(X)
+    tabpfn_pred = models["tabpfn"].predict_proba(X.to_numpy())
     df = df.select([
         "game_id", "home_team", "guest_team",
         "is_home_win"
-    ]).with_columns([
+    ]).with_columns(
         pl.Series(
-            "proba",
-            probability
-        )
-    ]).group_by(["game_id", "home_team", "guest_team", "is_home_win"]).agg([
-        pl.col("proba").mean()
+            "proba_catboost",
+            catboost_pred
+        ).arr.last(),
+        pl.Series(
+            "proba_lgbm",
+            lgbm_pred
+        ).arr.last(),
+        pl.Series(
+            "proba_xgb",
+            xgb_pred
+        ).arr.last().cast(pl.Float64),
+        pl.Series(
+            "proba_extra",
+            extra_pred
+        ).arr.last(),
+        pl.Series(
+            "proba_ensemble",
+            ensemble_pred
+        ).arr.last(),
+        pl.Series(
+            "proba_tabpfn",
+            tabpfn_pred
+        ).arr.last()
+    ).group_by(["game_id", "home_team", "guest_team", "is_home_win"]).agg([
+        pl.col("proba_catboost").mean(),
+        pl.col("proba_lgbm").mean(),
+        pl.col("proba_xgb").mean(),
+        pl.col("proba_extra").mean(),
+        pl.col("proba_ensemble").mean(),
+        pl.col("proba_tabpfn").mean()
     ]).with_columns([
-        (pl.col("proba") >= threshold).alias("is_predicted_home_win")
-    ]).join(
-        schedule[["game_id", "date"]],
-        on="game_id"
-    ).with_columns(
-        pl.col("date").cast(pl.String)
-    )
+        (pl.col("proba_catboost") >= 0.5).alias("is_predicted_home_win_catboost"),
+        (pl.col("proba_lgbm") >= 0.5).alias("is_predicted_home_win_lgbm"),
+        (pl.col("proba_xgb") >= 0.5).alias("is_predicted_home_win_xgb"),
+        (pl.col("proba_extra") >= 0.5).alias("is_predicted_home_win_extra"),
+        (pl.col("proba_ensemble") >= 0.5).alias("is_predicted_home_win_ensemble"),
+        (pl.col("proba_tabpfn") >= 0.5).alias("is_predicted_home_win_tabpfn")
+    ]).drop("home_team", "guest_team")
     return df

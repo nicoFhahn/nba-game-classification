@@ -23,7 +23,8 @@ class LGBMStepwiseFeatureSelector:
             verbose: bool = True,
             metric=None,
             use_ensemble: bool = False,
-            cv_strategy: Literal['kfold', 'timeseries'] = 'kfold'
+            cv_strategy: Literal['kfold', 'timeseries'] = 'kfold',
+            max_features: int = None
     ):
         """
         Initialize the feature selector.
@@ -56,6 +57,10 @@ class LGBMStepwiseFeatureSelector:
             - 'kfold': Standard K-Fold cross-validation (shuffled, random splits)
             - 'timeseries': TimeSeriesSplit (chronological splits, no shuffle)
               Use this for time-series data like NBA games to prevent data leakage
+        max_features : int or None
+            Maximum number of features to consider. The selector will find the best
+            feature set with <= max_features. If None, considers all possible sizes.
+            Useful for setting an upper bound on model complexity.
         """
         self.importance_type = importance_type
         self.n_folds = n_folds
@@ -67,6 +72,7 @@ class LGBMStepwiseFeatureSelector:
         self.needs_proba = False
         self.use_ensemble = use_ensemble
         self.cv_strategy = cv_strategy
+        self.max_features = max_features
         self.history_ = []
         self.best_features_ = None
         self.best_score_ = None
@@ -581,6 +587,8 @@ class LGBMStepwiseFeatureSelector:
             print(f"Optimization metric: {self.metric_name}")
             print(f"CV strategy: {self.cv_strategy.upper()}")
             print(f"Number of splits: {self.n_folds}")
+            if self.max_features is not None:
+                print(f"Max features constraint: {self.max_features}")
             print("=" * 80)
 
         while len(current_features) > 1:
@@ -606,21 +614,29 @@ class LGBMStepwiseFeatureSelector:
                 print(f"  Mean CV {self.metric_name}: {results['mean_score']:.4f} (+/- {results['std_score']:.4f})")
 
             # Update best features if this is the best score so far
-            if self.best_score_ is None:
-                self.best_score_ = results['mean_score']
-                self.best_features_ = current_features.copy()
-                if self.verbose:
-                    print(f"  *** New best score! ***")
-            else:
-                # Check if current score is better based on metric direction
-                is_better = (results['mean_score'] > self.best_score_ if self.higher_is_better
-                             else results['mean_score'] < self.best_score_)
+            # Only consider feature sets that satisfy max_features constraint
+            is_within_max_features = (self.max_features is None or
+                                      len(current_features) <= self.max_features)
 
-                if is_better:
+            if is_within_max_features:
+                if self.best_score_ is None:
                     self.best_score_ = results['mean_score']
                     self.best_features_ = current_features.copy()
                     if self.verbose:
                         print(f"  *** New best score! ***")
+                else:
+                    # Check if current score is better based on metric direction
+                    is_better = (results['mean_score'] > self.best_score_ if self.higher_is_better
+                                 else results['mean_score'] < self.best_score_)
+
+                    if is_better:
+                        self.best_score_ = results['mean_score']
+                        self.best_features_ = current_features.copy()
+                        if self.verbose:
+                            print(f"  *** New best score! ***")
+            else:
+                if self.verbose and len(current_features) == (self.max_features + 1 if self.max_features else 0):
+                    print(f"  Note: Feature set exceeds max_features={self.max_features}, not considered for best")
 
             # Calculate feature importance
             importance = self._get_feature_importance(
@@ -670,6 +686,8 @@ class LGBMStepwiseFeatureSelector:
             print(f"Feature selection complete!")
             print(f"Best score: {self.best_score_:.4f}")
             print(f"Best number of features: {len(self.best_features_)}")
+            if self.max_features is not None:
+                print(f"  (constrained to max {self.max_features} features)")
             print(f"Best features: {self.best_features_}")
 
         return self

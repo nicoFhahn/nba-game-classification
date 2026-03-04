@@ -13,6 +13,7 @@ from sklearn.ensemble import (
     HistGradientBoostingClassifier,
     StackingClassifier
 )
+from sklearn.calibration import CalibratedClassifierCV
 from sklearn.linear_model import LogisticRegression, SGDClassifier
 from sklearn.naive_bayes import GaussianNB, BernoulliNB
 from sklearn.metrics import (
@@ -273,6 +274,7 @@ class ModelTuner:
         params = {
             'n_estimators': trial.suggest_int('n_estimators', 100, self.max_estimators, step=100),
             'max_depth': trial.suggest_int('max_depth', 3, 15),
+            'max_leaves': trial.suggest_int('max_leaves', 16, 512, log=True),
             'learning_rate': trial.suggest_float('learning_rate', 0.01, 0.3, log=True),
             'subsample': trial.suggest_float('subsample', 0.5, 1.0),
             'colsample_bytree': trial.suggest_float('colsample_bytree', 0.5, 1.0),
@@ -280,6 +282,7 @@ class ModelTuner:
             'min_child_weight': trial.suggest_int('min_child_weight', 1, 10),
             'reg_alpha': trial.suggest_float('reg_alpha', 1e-8, 10.0, log=True),
             'reg_lambda': trial.suggest_float('reg_lambda', 1e-8, 10.0, log=True),
+            'scale_pos_weight': trial.suggest_float('scale_pos_weight', 0.5, 10.0, log=True),
             'random_state': self.random_state,
             'tree_method': 'hist',
             'eval_metric': 'logloss'
@@ -296,10 +299,13 @@ class ModelTuner:
             'learning_rate': trial.suggest_float('learning_rate', 0.01, 0.3, log=True),
             'num_leaves': trial.suggest_int('num_leaves', 20, 150),
             'subsample': trial.suggest_float('subsample', 0.5, 1.0),
+            'subsample_freq': trial.suggest_int('subsample_freq', 1, 10),
             'colsample_bytree': trial.suggest_float('colsample_bytree', 0.5, 1.0),
+            'colsample_bylevel': trial.suggest_float('colsample_bylevel', 0.5, 1.0),
             'min_child_samples': trial.suggest_int('min_child_samples', 5, 100),
             'reg_alpha': trial.suggest_float('reg_alpha', 1e-8, 10.0, log=True),
             'reg_lambda': trial.suggest_float('reg_lambda', 1e-8, 10.0, log=True),
+            'is_unbalance': trial.suggest_categorical('is_unbalance', [True, False]),
             'random_state': self.random_state,
             'verbose': -1
         }
@@ -317,6 +323,8 @@ class ModelTuner:
             'border_count': trial.suggest_int('border_count', 32, 255),
             'random_strength': trial.suggest_float('random_strength', 0, 10),
             'bagging_temperature': trial.suggest_float('bagging_temperature', 0, 1),
+            'grow_policy': trial.suggest_categorical('grow_policy', ['SymmetricTree', 'Depthwise', 'Lossguide']),
+            'auto_class_weights': trial.suggest_categorical('auto_class_weights', ['Balanced', 'SqrtBalanced', None]),
             'random_state': self.random_state,
             'verbose': False
         }
@@ -672,7 +680,7 @@ class StackingEnsemble:
             final_estimator=final_estimator,
             cv=cv_folds,  # Internal CV for generating meta-features
             n_jobs=-1,
-            passthrough=False  # Don't pass original features to meta-learner
+            passthrough=True  # Pass original features to meta-learner for richer signal
         )
 
         self.is_fitted = False
@@ -883,7 +891,7 @@ def main_pipeline(X_train, y_train, X_test, y_test, n_trials=100, max_estimators
                   cv_folds=5, early_stopping=True, early_stopping_rounds=50,
                   cv_strategy='stratified', use_meta_validation=False, meta_val_size=0.2,
                   ensemble_method='weighted', stacking_meta_learner='LogisticRegression',
-                  models_to_train=None):
+                  calibrate_models=True, models_to_train=None):
     """
     Complete ML pipeline
 
@@ -927,6 +935,10 @@ def main_pipeline(X_train, y_train, X_test, y_test, n_trials=100, max_estimators
                       - 'stacking': StackingClassifier with meta-learner (more powerful, slower)
     stacking_meta_learner : Meta-learner for stacking ('LogisticRegression', 'XGBoost', 'LightGBM').
                             Only used if ensemble_method='stacking'.
+    calibrate_models : If True (default), wraps each tuned model with CalibratedClassifierCV
+                       (isotonic regression) before ensemble construction. Corrects poorly
+                       calibrated probabilities from boosting models, improving both ensemble
+                       weighting quality and log-loss on the test set.
     models_to_train : List of model names to train (default: ['LightGBM', 'ExtraTrees', 'XGBoost', 'CatBoost']).
                       Available models: 'ExtraTrees', 'XGBoost', 'LightGBM', 'CatBoost',
                       'HistGradientBoosting', 'LogisticRegression', 'SGDClassifier',
@@ -1044,14 +1056,16 @@ def main_pipeline(X_train, y_train, X_test, y_test, n_trials=100, max_estimators
         y_test_final = y_test
 
     else:
-        # Original behavior: use all training data, split test set
+        # Original behavior: use all training data for tuning, split test set for
+        # ensemble validation (65%) and final evaluation (35%).
         X_train_tune = X_train
         y_train_tune = y_train
 
-        # Split test set for validation (ensemble optimization) and final test
-        X_val_for_ensemble, X_test_final, y_val_for_ensemble, y_test_final = train_test_split(
-            X_test, y_test, test_size=0.5, random_state=random_state, stratify=y_test
-        )
+        split_idx = int(len(X_test) * 0.65)
+        X_val_for_ensemble = X_test[:split_idx]
+        X_test_final = X_test[split_idx:]
+        y_val_for_ensemble = y_test[:split_idx]
+        y_test_final = y_test[split_idx:]
 
     print(f"\n{'='*70}")
     print("DATASET INFORMATION")
@@ -1209,9 +1223,45 @@ def main_pipeline(X_train, y_train, X_test, y_test, n_trials=100, max_estimators
     studies = tuner.studies
 
     # ========================================================================
+    # STEP 1b: Calibrate model probabilities (optional)
+    # ========================================================================
+
+    if calibrate_models:
+        print(f"\n{'='*70}")
+        print("CALIBRATING MODEL PROBABILITIES")
+        print(f"{'='*70}")
+        print("Using isotonic regression calibration on meta-validation set.")
+        print("This corrects overconfident/underconfident boosting probabilities,")
+        print("improving ensemble weighting and log-loss.\n")
+
+        calibrated_models = {}
+        for name, model in tuner.best_models.items():
+            try:
+                calibrated = CalibratedClassifierCV(
+                    estimator=model,
+                    method='isotonic',
+                    cv='prefit'   # model is already trained; calibrate on X_val_for_ensemble
+                )
+                calibrated.fit(X_val_for_ensemble, y_val_for_ensemble)
+
+                # Quick sanity check: calibrated AUC should be comparable to raw
+                raw_auc = roc_auc_score(y_val_for_ensemble, model.predict_proba(X_val_for_ensemble)[:, 1])
+                cal_auc = roc_auc_score(y_val_for_ensemble, calibrated.predict_proba(X_val_for_ensemble)[:, 1])
+                print(f"  {name}: raw AUC={raw_auc:.4f}  →  calibrated AUC={cal_auc:.4f}")
+
+                calibrated_models[name] = calibrated
+            except Exception as e:
+                print(f"  {name}: calibration failed ({e}), using uncalibrated model")
+                calibrated_models[name] = model
+
+        models_for_ensemble = calibrated_models
+    else:
+        models_for_ensemble = tuner.best_models
+
+    # ========================================================================
     # STEP 2: Evaluate individual models
     # ========================================================================
-    individual_results = evaluate_models(tuner.best_models, X_val_for_ensemble, y_val_for_ensemble)
+    individual_results = evaluate_models(models_for_ensemble, X_val_for_ensemble, y_val_for_ensemble)
 
     # ========================================================================
     # STEP 3: Build ensemble (weighted or stacking)
@@ -1222,12 +1272,12 @@ def main_pipeline(X_train, y_train, X_test, y_test, n_trials=100, max_estimators
     print(f"{'='*70}")
 
     if ensemble_method == 'weighted':
-        ensemble = WeightedEnsemble(tuner.best_models, X_val_for_ensemble, y_val_for_ensemble, random_state=random_state)
+        ensemble = WeightedEnsemble(models_for_ensemble, X_val_for_ensemble, y_val_for_ensemble, random_state=random_state)
         ensemble_study = ensemble.optimize_weights(n_trials=200, optuna_verbosity=optuna_verbosity)
 
     elif ensemble_method == 'stacking':
         ensemble = StackingEnsemble(
-            tuner.best_models,
+            models_for_ensemble,
             meta_learner=stacking_meta_learner,
             random_state=random_state,
             cv_folds=cv_folds
@@ -1265,7 +1315,7 @@ def main_pipeline(X_train, y_train, X_test, y_test, n_trials=100, max_estimators
     print(f"{'='*70}")
 
     # Individual models
-    final_results = evaluate_models(tuner.best_models, X_test_final, y_test_final, threshold=threshold_best)
+    final_results = evaluate_models(models_for_ensemble, X_test_final, y_test_final, threshold=threshold_best)
 
     # Ensemble with optimized threshold
     ensemble_proba_test = ensemble.predict_proba(X_test_final)
@@ -1325,6 +1375,7 @@ def main_pipeline(X_train, y_train, X_test, y_test, n_trials=100, max_estimators
             'meta_val_size': meta_val_size if use_meta_validation else None,
             'ensemble_method': ensemble_method,
             'stacking_meta_learner': stacking_meta_learner if ensemble_method == 'stacking' else None,
+            'calibrate_models': calibrate_models,
             'best_threshold': float(threshold_best),
             'final_roc_auc': float(roc_auc_score(y_test_final, ensemble_proba_test)),
             'final_accuracy': float(accuracy_score(y_test_final, ensemble_pred_test)),

@@ -1,589 +1,500 @@
 """
-SHAP (SHapley Additive exPlanations) Analysis for ML Pipeline
-
-This script shows how to calculate SHAP values for:
-a) Training data (global feature importance)
-b) New predictions (individual explanations)
-
-SHAP provides better explanations than simple feature importance because it:
-- Shows how each feature contributes to individual predictions
-- Is theoretically grounded in game theory
-- Works for any model type
+SHAP Analysis for ML Pipeline
+Supports both WeightedEnsemble and StackingEnsemble
 """
 
 import numpy as np
-import pandas as pd
 import shap
 import matplotlib.pyplot as plt
-from ml_pipeline import load_pipeline
+from pathlib import Path
 
-# ============================================================================
-# HELPER FUNCTIONS
-# ============================================================================
 
-def _extract_feature_names(X_data):
-    """
-    Extract feature names from DataFrame (handles both Pandas and Polars)
-    
-    Parameters:
-    -----------
-    X_data : DataFrame or array
-        Input data
-    
-    Returns:
-    --------
-    feature_names : list
-        List of feature names
-    """
-    if hasattr(X_data, 'columns'):
-        columns = X_data.columns
-        # Polars columns is already a list, Pandas has to_list() method
-        if isinstance(columns, list):
-            return columns
-        elif hasattr(columns, 'to_list'):
-            return columns.to_list()
-        elif hasattr(columns, 'tolist'):
-            return columns.tolist()
+def _extract_feature_names(X):
+    """Extract feature names from DataFrame or create generic names"""
+    if hasattr(X, 'columns'):
+        # Polars or Pandas DataFrame
+        if hasattr(X.columns, 'to_list'):
+            return X.columns.to_list()  # Pandas
         else:
-            return list(columns)
+            return list(X.columns)  # Polars
     else:
-        # Numpy array or no column names
-        return [f'Feature_{i}' for i in range(X_data.shape[1])]
+        # Numpy array - create generic names
+        n_features = X.shape[1] if len(X.shape) > 1 else 1
+        return [f'feature_{i}' for i in range(n_features)]
 
-# ============================================================================
-# SETUP: Install SHAP if needed
-# ============================================================================
 
-"""
-First, install SHAP:
-    pip install shap
-
-For faster computations with tree models:
-    pip install shap[plots]
-"""
-
-# ============================================================================
-# OPTION 1: SHAP for Individual Models (Recommended for Tree Models)
-# ============================================================================
-
-def calculate_shap_individual_models(saved_pipeline, X_data, model_name='XGBoost', 
-                                     background_size=100):
+def calculate_shap_single_model(model, X_train, model_name='Model'):
     """
-    Calculate SHAP values for a specific tree-based model
-    
-    This is FAST for tree models (XGBoost, LightGBM, CatBoost, etc.)
-    Uses TreeExplainer which is exact and efficient.
-    
+    Calculate SHAP values for a single model
+
     Parameters:
     -----------
-    saved_pipeline : dict
-        Output from load_pipeline()
-    X_data : DataFrame or array
-        Data to explain (will be auto-converted to numpy)
+    model : trained model
+        Single trained model
+    X_train : array-like
+        Training data for SHAP analysis
     model_name : str
-        Which model to explain: 'XGBoost', 'LightGBM', 'CatBoost', 'ExtraTrees', 'HistGradientBoosting'
-    background_size : int
-        Number of background samples for explainer (not needed for tree models, included for consistency)
-    
+        Name of the model (for logging)
+
     Returns:
     --------
-    shap_values : array
-        SHAP values for each feature and sample
-    explainer : shap.Explainer
-        SHAP explainer object
-    """
-    
-    # Convert to numpy if needed
-    if hasattr(X_data, 'to_numpy'):
-        X_np = X_data.to_numpy()
-        feature_names = _extract_feature_names(X_data)
-    else:
-        X_np = X_data
-        feature_names = [f'Feature_{i}' for i in range(X_data.shape[1])]
-    
-    # Get the model
-    model = saved_pipeline['models'][model_name]
-    
-    print(f"\nCalculating SHAP values for {model_name}...")
-    print(f"Data shape: {X_np.shape}")
-    
-    # Use TreeExplainer for tree-based models (FAST!)
-    if model_name in ['XGBoost', 'LightGBM', 'CatBoost', 'ExtraTrees', 'HistGradientBoosting']:
-        explainer = shap.TreeExplainer(model)
-        shap_values = explainer.shap_values(X_np)
-        
-        # For binary classification, some models return list of arrays
-        if isinstance(shap_values, list):
-            shap_values = shap_values[1]  # Use positive class
-    else:
-        raise ValueError(f"Use calculate_shap_ensemble for non-tree models")
-    
-    print(f"✓ SHAP values calculated: {shap_values.shape}")
-    
-    return shap_values, explainer, feature_names
-
-
-# ============================================================================
-# OPTION 2: SHAP for Ensemble (Works for weighted ensemble)
-# ============================================================================
-
-def calculate_shap_ensemble(saved_pipeline, X_data, background_size=100, 
-                            use_kernel=True):
-    """
-    Calculate SHAP values for the entire weighted ensemble
-    
-    This explains the final ensemble predictions (after weighted averaging).
-    
-    Two methods available:
-    1. KernelExplainer (use_kernel=True): Model-agnostic, SLOW but works always
-    2. Linear combination of individual SHAP (use_kernel=False): FAST approximation
-    
-    NOTE: If you get errors with XGBoost and SHAP (base_score issue), the function
-    will automatically fall back to KernelExplainer for problematic models.
-    
-    Alternative: Upgrade SHAP: pip install --upgrade shap
-    
-    Parameters:
-    -----------
-    saved_pipeline : dict
-        Output from load_pipeline()
-    X_data : DataFrame or array
-        Data to explain
-    background_size : int
-        Number of background samples (smaller = faster but less accurate)
-        Only used for KernelExplainer (use_kernel=True)
-    use_kernel : bool
-        If True, use KernelExplainer (exact but slow)
-        If False, use weighted average of individual model SHAP (fast approximation)
-    
-    Returns:
-    --------
-    shap_values : array
-        SHAP values for each feature and sample
-    explainer : shap.Explainer or None
-        SHAP explainer object (None if use_kernel=False)
+    shap_values : numpy array
+        SHAP values
+    base_value : float
+        Expected value
     feature_names : list
         Feature names
     """
-    
+    print(f"\n{'='*70}")
+    print(f"Calculating SHAP for {model_name}")
+    print(f"{'='*70}")
+
     # Convert to numpy if needed
-    if hasattr(X_data, 'to_numpy'):
-        X_np = X_data.to_numpy()
-        feature_names = _extract_feature_names(X_data)
+    if hasattr(X_train, 'to_numpy'):
+        X_train_np = X_train.to_numpy()
     else:
-        X_np = X_data
-        feature_names = [f'Feature_{i}' for i in range(X_data.shape[1])]
-    
-    ensemble = saved_pipeline['ensemble']
-    
-    if use_kernel:
-        # METHOD 1: KernelExplainer (Exact but SLOW)
-        print("\n" + "="*70)
-        print("Calculating SHAP for Ensemble using KernelExplainer")
-        print("="*70)
-        print("⚠️  This is SLOW but gives exact SHAP values for ensemble")
-        print("    For faster results, use use_kernel=False")
-        
-        # Create background dataset
-        if X_np.shape[0] > background_size:
-            background_indices = np.random.choice(X_np.shape[0], background_size, replace=False)
-            background = X_np[background_indices]
-        else:
-            background = X_np
-        
-        print(f"\nData shape: {X_np.shape}")
-        print(f"Background size: {background.shape[0]}")
-        print("Computing... (this may take a while)")
-        
-        # Create prediction function for ensemble
+        X_train_np = X_train
+
+    # Extract feature names
+    feature_names = _extract_feature_names(X_train)
+
+    print(f"Data shape: {X_train_np.shape}")
+
+    # Try TreeExplainer first (fast for tree models)
+    try:
+        print("Trying TreeExplainer...")
+        explainer = shap.TreeExplainer(model)
+        shap_values = explainer.shap_values(X_train_np)
+
+        # Handle different output formats
+        if isinstance(shap_values, list):
+            shap_values = shap_values[1]  # Binary classification, take positive class
+        elif len(shap_values.shape) == 3:
+            shap_values = shap_values[:, :, 1]  # (n_samples, n_features, 2) -> (n_samples, n_features)
+
+        base_value = explainer.expected_value
+        if isinstance(base_value, (list, np.ndarray)):
+            base_value = base_value[1] if len(base_value) > 1 else base_value[0]
+
+        print(f"✓ TreeExplainer successful")
+
+    except Exception as e:
+        print(f"⚠️  TreeExplainer failed: {str(e)[:100]}")
+        print("Falling back to KernelExplainer (slower)...")
+
+        # Fallback to KernelExplainer
+        background = shap.sample(X_train_np, min(50, len(X_train_np)))
+
         def predict_fn(X):
-            return saved_pipeline['predict_proba'](X)
-        
-        # Use KernelExplainer
+            proba = model.predict_proba(X)
+            return proba[:, 1] if len(proba.shape) > 1 else proba
+
         explainer = shap.KernelExplainer(predict_fn, background)
-        shap_values = explainer.shap_values(X_np)
-        
-        print(f"✓ SHAP values calculated: {shap_values.shape}")
-        
+        shap_values = explainer.shap_values(X_train_np)
+        base_value = explainer.expected_value
+
+        print(f"✓ KernelExplainer successful")
+
+    print(f"SHAP values shape: {shap_values.shape}")
+
+    return shap_values, base_value, feature_names
+
+
+def calculate_shap_individual_models(saved, X_train, models_to_analyze=None):
+    """
+    Calculate SHAP values for all individual models
+
+    Parameters:
+    -----------
+    saved : dict
+        Pipeline loaded with load_pipeline()
+    X_train : array-like
+        Training data for SHAP analysis
+    models_to_analyze : list, optional
+        List of model names to analyze. If None, analyze all models.
+
+    Returns:
+    --------
+    results : dict
+        Dictionary with SHAP values for each model
+        {model_name: {'shap_values': ..., 'base_value': ..., 'feature_names': ...}}
+    """
+    models = saved['models']
+
+    if models_to_analyze is None:
+        models_to_analyze = list(models.keys())
+
+    print(f"\n{'='*70}")
+    print(f"Calculating SHAP for Individual Models")
+    print(f"{'='*70}")
+    print(f"Models to analyze: {', '.join(models_to_analyze)}")
+
+    results = {}
+
+    for model_name in models_to_analyze:
+        if model_name not in models:
+            print(f"\n⚠️  Model '{model_name}' not found. Skipping...")
+            continue
+
+        model = models[model_name]
+
+        try:
+            shap_values, base_value, feature_names = calculate_shap_single_model(
+                model, X_train, model_name
+            )
+
+            results[model_name] = {
+                'shap_values': shap_values,
+                'base_value': base_value,
+                'feature_names': feature_names
+            }
+
+        except Exception as e:
+            print(f"\n✗ Failed to calculate SHAP for {model_name}: {e}")
+            continue
+
+    print(f"\n{'='*70}")
+    print(f"✓ Completed SHAP analysis for {len(results)}/{len(models_to_analyze)} models")
+    print(f"{'='*70}")
+
+    return results
+
+
+def calculate_shap_ensemble(saved, X_train, use_kernel=False, background_size=100, sample_size=None):
+    """
+    Calculate SHAP values for ensemble model
+    Supports both WeightedEnsemble and StackingEnsemble
+
+    Parameters:
+    -----------
+    saved : dict
+        Pipeline loaded with load_pipeline()
+    X_train : array-like
+        Training data for SHAP analysis
+    use_kernel : bool
+        If True, use KernelExplainer on ensemble (slow but exact)
+        If False, use weighted/averaged SHAP from individual models (fast, approximate)
+    background_size : int
+        Number of samples for background data (KernelExplainer only)
+    sample_size : int, optional
+        Subsample X_train for faster computation
+
+    Returns:
+    --------
+    shap_values : numpy array
+        SHAP values
+    base_value : float or None
+        Base value (expected value)
+    feature_names : list
+        Feature names
+    """
+    ensemble = saved['ensemble']
+    models = saved['models']
+
+    # Convert to numpy if needed
+    if hasattr(X_train, 'to_numpy'):
+        X_train_np = X_train.to_numpy()
     else:
-        # METHOD 2: Weighted average of individual SHAP values (FAST approximation)
-        print("\n" + "="*70)
-        print("Calculating SHAP for Ensemble using Weighted Average Method")
-        print("="*70)
-        print("✓ This is FAST - uses weighted average of individual model SHAP values")
+        X_train_np = X_train
+
+    # Extract feature names
+    feature_names = _extract_feature_names(X_train)
+
+    # Subsample if requested
+    if sample_size is not None and len(X_train_np) > sample_size:
+        indices = np.random.choice(len(X_train_np), sample_size, replace=False)
+        X_train_np = X_train_np[indices]
+        print(f"Subsampled to {sample_size} samples for faster computation")
+
+    print("="*70)
+    print("Calculating SHAP for Ensemble")
+    print("="*70)
+
+    # Determine ensemble type
+    is_weighted = hasattr(ensemble, 'weights')
+    is_stacking = hasattr(ensemble, 'stacking_clf')
+
+    if is_weighted:
+        print("Ensemble type: Weighted Average")
+        print(f"Models: {', '.join(ensemble.model_names)}")
+        print(f"Weights: {dict(zip(ensemble.model_names, ensemble.weights))}")
+        weights = ensemble.weights
+    elif is_stacking:
+        print("Ensemble type: Stacking")
+        print(f"Base models: {', '.join(ensemble.model_names)}")
+        print(f"Meta-learner: {ensemble.meta_learner_type}")
+        # For stacking, use equal weights as approximation
+        weights = np.ones(len(ensemble.model_names)) / len(ensemble.model_names)
+        print("Note: Using equal average of base models (approximation)")
+    else:
+        raise ValueError("Unknown ensemble type")
+
+    print(f"Data shape: {X_train_np.shape}")
+
+    if use_kernel:
+        # METHOD 1: Exact KernelExplainer (slow)
+        print("\n🐌 Using KernelExplainer (exact but SLOW)")
+        print(f"Background size: {background_size}")
+        print("⚠️  This can take several minutes to hours...")
+
+        # Create background data
+        if len(X_train_np) > background_size:
+            background = shap.sample(X_train_np, background_size)
+        else:
+            background = X_train_np
+
+        # Prediction function
+        def predict_fn(X):
+            return ensemble.predict_proba(X)
+
+        # Create explainer
+        explainer = shap.KernelExplainer(predict_fn, background)
+
+        # Calculate SHAP
+        shap_values = explainer.shap_values(X_train_np)
+
+        # Handle 3D output
+        if len(shap_values.shape) == 3:
+            shap_values = shap_values[:, :, 1]
+
+        base_value = explainer.expected_value
+        if isinstance(base_value, (list, np.ndarray)):
+            base_value = base_value[1] if len(base_value) > 1 else base_value[0]
+
+        print(f"✓ SHAP values calculated: {shap_values.shape}")
+
+    else:
+        # METHOD 2: Fast weighted/averaged method
+        if is_weighted:
+            print("\n⚡ Using Weighted Average Method (FAST)")
+            print("✓ Combines individual model SHAP values with ensemble weights")
+        else:
+            print("\n⚡ Using Equal Average Method (FAST)")
+            print("✓ Averages individual model SHAP values equally")
+
         print("   Note: This is an approximation, not exact ensemble SHAP")
-        
-        print(f"\nData shape: {X_np.shape}")
-        print(f"Ensemble weights: {dict(zip(ensemble.model_names, ensemble.weights))}")
-        
-        # Calculate SHAP for each model and combine with ensemble weights
-        all_shap = []
-        
-        for model_name in ensemble.model_names:
-            print(f"\n  Computing SHAP for {model_name}...")
-            model = ensemble.models[model_name]
-            
+
+        all_shap_values = []
+        successful_models = []
+
+        for model_name, model in models.items():
+            print(f"\nCalculating SHAP for {model_name}...")
+
             try:
-                # Use TreeExplainer for tree models
-                model_explainer = shap.TreeExplainer(model)
-                model_shap = model_explainer.shap_values(X_np)
-                
-                # Handle list output (binary classification)
-                if isinstance(model_shap, list):
-                    model_shap = model_shap[1]
-                
-                all_shap.append(model_shap)
-                print(f"    ✓ Shape: {model_shap.shape}")
-                
-            except (ValueError, Exception) as e:
-                # Fallback for models with compatibility issues (e.g., XGBoost with SHAP)
-                if "could not convert string to float" in str(e) or "base_score" in str(e):
-                    print(f"    ⚠️  TreeExplainer failed (XGBoost/SHAP compatibility issue)")
-                    print(f"       Using KernelExplainer as fallback (slower)...")
-                    
-                    # Use KernelExplainer as fallback
-                    background_indices = np.random.choice(X_np.shape[0], min(50, X_np.shape[0]), replace=False)
-                    background = X_np[background_indices]
-                    
-                    def predict_fn(X):
-                        return model.predict_proba(X)[:, 1]
-                    
-                    kernel_explainer = shap.KernelExplainer(predict_fn, background)
-                    model_shap = kernel_explainer.shap_values(X_np, silent=True)
-                    
-                    all_shap.append(model_shap)
-                    print(f"    ✓ Shape: {model_shap.shape} (using KernelExplainer)")
+                # Try TreeExplainer first
+                if model_name in ['XGBoost', 'LightGBM', 'CatBoost', 'ExtraTrees',
+                                 'HistGradientBoosting', 'RandomForest']:
+                    try:
+                        explainer = shap.TreeExplainer(model)
+                        shap_vals = explainer.shap_values(X_train_np)
+
+                        # Handle different output formats
+                        if isinstance(shap_vals, list):
+                            shap_vals = shap_vals[1]
+                        elif len(shap_vals.shape) == 3:
+                            shap_vals = shap_vals[:, :, 1]
+
+                        print(f"  ✓ TreeExplainer: {shap_vals.shape}")
+
+                    except Exception as e:
+                        print(f"  ⚠️  TreeExplainer failed: {str(e)[:80]}")
+                        print(f"  ↳ Falling back to KernelExplainer...")
+
+                        # Fallback
+                        background = shap.sample(X_train_np, min(50, len(X_train_np)))
+                        explainer = shap.KernelExplainer(
+                            lambda x: model.predict_proba(x)[:, 1],
+                            background
+                        )
+                        shap_vals = explainer.shap_values(X_train_np)
+                        print(f"  ✓ KernelExplainer: {shap_vals.shape}")
+
                 else:
-                    # Re-raise if it's a different error
-                    raise
-        
-        # Combine SHAP values using ensemble weights
-        print(f"\n  Combining with ensemble weights...")
-        
-        # First, ensure all SHAP arrays have the same shape
-        for i, (model_name, shap_array) in enumerate(zip(ensemble.model_names, all_shap)):
-            # Handle 3D arrays (some explainers return [n_samples, n_features, n_classes])
-            if len(shap_array.shape) == 3:
-                # Take positive class (last dimension, index 1)
-                all_shap[i] = shap_array[:, :, 1]
-                print(f"    {model_name}: Reshaped from {shap_array.shape} to {all_shap[i].shape}")
-            elif len(shap_array.shape) == 2:
-                # Already correct shape
-                print(f"    {model_name}: Shape {shap_array.shape} (OK)")
-            else:
-                raise ValueError(f"Unexpected SHAP shape for {model_name}: {shap_array.shape}")
-        
-        # Now combine with weights
-        shap_values = np.zeros_like(all_shap[0])
-        for i, (model_name, weight) in enumerate(zip(ensemble.model_names, ensemble.weights)):
-            shap_values += weight * all_shap[i]
-            print(f"    {model_name}: weight = {weight:.4f}")
-        
-        explainer = None  # No single explainer object
-        
-        print(f"\n✓ Ensemble SHAP values calculated: {shap_values.shape}")
-    
-    return shap_values, explainer, feature_names
+                    # Linear/probabilistic models - use KernelExplainer
+                    background = shap.sample(X_train_np, min(50, len(X_train_np)))
+                    explainer = shap.KernelExplainer(
+                        lambda x: model.predict_proba(x)[:, 1],
+                        background
+                    )
+                    shap_vals = explainer.shap_values(X_train_np)
+                    print(f"  ✓ KernelExplainer: {shap_vals.shape}")
+
+                all_shap_values.append(shap_vals)
+                successful_models.append(model_name)
+
+            except Exception as e:
+                print(f"  ✗ Failed: {e}")
+                continue
+
+        if len(all_shap_values) == 0:
+            raise ValueError("Failed to calculate SHAP for any model")
+
+        # Combine SHAP values
+        print(f"\n{'='*70}")
+        print("Combining Individual SHAP Values")
+        print(f"{'='*70}")
+        print(f"Successfully calculated SHAP for: {', '.join(successful_models)}")
+
+        if is_weighted:
+            # Weighted average
+            print(f"Using weighted average")
+
+            # Only use weights for successful models
+            model_to_weight = dict(zip(ensemble.model_names, weights))
+            successful_weights = [model_to_weight[name] for name in successful_models]
+
+            # Normalize weights
+            total_weight = sum(successful_weights)
+            successful_weights = [w / total_weight for w in successful_weights]
+
+            print(f"Adjusted weights: {dict(zip(successful_models, successful_weights))}")
+
+            # Weight each model's SHAP values
+            weighted_shap = []
+            for shap_vals, weight in zip(all_shap_values, successful_weights):
+                weighted_shap.append(shap_vals * weight)
+
+            shap_values = np.sum(weighted_shap, axis=0)
+            print(f"✓ Weighted ensemble SHAP: {shap_values.shape}")
+
+        else:
+            # Equal average (for stacking or when weights not available)
+            print(f"Using equal average of {len(all_shap_values)} models")
+            shap_values = np.mean(all_shap_values, axis=0)
+            print(f"✓ Averaged ensemble SHAP: {shap_values.shape}")
+
+        base_value = None
+
+    return shap_values, base_value, feature_names
 
 
-# ============================================================================
-# VISUALIZATION FUNCTIONS
-# ============================================================================
-
-def plot_shap_summary(shap_values, X_data, feature_names, model_name='Model', 
+def plot_shap_summary(shap_values, X_train, feature_names, model_name='Model',
                       max_display=20, save_path=None):
     """
-    Create a SHAP summary plot showing global feature importance
-    
-    This shows:
-    - Which features are most important overall
-    - How feature values affect predictions (color coding)
+    Create SHAP summary plot
+
+    Parameters:
+    -----------
+    shap_values : numpy array
+        SHAP values
+    X_train : array-like
+        Training data
+    feature_names : list
+        Feature names
+    model_name : str
+        Name for the plot title
+    max_display : int
+        Maximum number of features to display
+    save_path : str, optional
+        Path to save the plot
     """
+    # Convert to numpy if needed
+    if hasattr(X_train, 'to_numpy'):
+        X_train_np = X_train.to_numpy()
+    else:
+        X_train_np = X_train
+
+    print(f"\n{'='*70}")
+    print(f"Creating SHAP Summary Plot for {model_name}")
+    print(f"{'='*70}")
+
     plt.figure(figsize=(10, 8))
-    
     shap.summary_plot(
-        shap_values, 
-        X_data.to_numpy() if hasattr(X_data, 'to_numpy') else X_data,
+        shap_values,
+        X_train_np,
         feature_names=feature_names,
         max_display=max_display,
         show=False
     )
-    
-    plt.title(f'SHAP Summary Plot - {model_name}', fontsize=14, pad=20)
+    plt.title(f'SHAP Summary - {model_name}', fontsize=14, pad=20)
     plt.tight_layout()
-    
+
     if save_path:
         plt.savefig(save_path, dpi=300, bbox_inches='tight')
-        print(f"✓ Summary plot saved to: {save_path}")
-    
+        print(f"✓ Plot saved to: {save_path}")
+
     plt.show()
+    print(f"✓ Summary plot displayed")
 
 
-def plot_shap_waterfall(shap_values, X_data, feature_names, sample_idx=0, 
-                        model_name='Model', save_path=None):
+def plot_shap_bar(shap_values, feature_names, model_name='Model',
+                  max_display=20, save_path=None):
     """
-    Create a waterfall plot for a single prediction
-    
-    Shows how each feature contributes to pushing the prediction
-    from the base value (average prediction) to the final prediction.
-    """
-    # Convert to numpy if needed
-    X_np = X_data.to_numpy() if hasattr(X_data, 'to_numpy') else X_data
-    
-    # Create explanation object
-    explanation = shap.Explanation(
-        values=shap_values[sample_idx],
-        base_values=shap_values.mean(axis=0) if len(shap_values.shape) > 1 else 0,
-        data=X_np[sample_idx],
-        feature_names=feature_names
-    )
-    
-    plt.figure(figsize=(10, 6))
-    shap.waterfall_plot(explanation, show=False)
-    plt.title(f'SHAP Waterfall Plot - {model_name} (Sample {sample_idx})', fontsize=14)
-    plt.tight_layout()
-    
-    if save_path:
-        plt.savefig(save_path, dpi=300, bbox_inches='tight')
-        print(f"✓ Waterfall plot saved to: {save_path}")
-    
-    plt.show()
+    Create SHAP bar plot (mean absolute SHAP values)
 
-
-def plot_shap_force(shap_values, X_data, feature_names, sample_idx=0, 
-                    base_value=None, save_path=None):
-    """
-    Create a force plot for a single prediction
-    
-    Shows which features push the prediction higher (red) or lower (blue).
-    """
-    # Convert to numpy if needed
-    X_np = X_data.to_numpy() if hasattr(X_data, 'to_numpy') else X_data
-    
-    if base_value is None:
-        base_value = shap_values.mean()
-    
-    # Force plot
-    shap.force_plot(
-        base_value,
-        shap_values[sample_idx],
-        X_np[sample_idx],
-        feature_names=feature_names,
-        matplotlib=True,
-        show=False
-    )
-    
-    plt.tight_layout()
-    
-    if save_path:
-        plt.savefig(save_path, dpi=300, bbox_inches='tight')
-        print(f"✓ Force plot saved to: {save_path}")
-    
-    plt.show()
-
-
-def get_top_features(shap_values, feature_names, top_n=10):
-    """
-    Get top N most important features based on mean absolute SHAP values
-    
-    Returns:
-    --------
-    DataFrame with features ranked by importance
-    """
-    # Calculate mean absolute SHAP value for each feature
-    importance = np.abs(shap_values).mean(axis=0)
-    
-    # Create DataFrame
-    importance_df = pd.DataFrame({
-        'feature': feature_names,
-        'importance': importance
-    }).sort_values('importance', ascending=False).head(top_n)
-    
-    importance_df['rank'] = range(1, len(importance_df) + 1)
-    
-    return importance_df[['rank', 'feature', 'importance']]
-
-
-# ============================================================================
-# COMPLETE EXAMPLE WORKFLOW
-# ============================================================================
-
-def shap_analysis_workflow(pipeline_dir, X_train, X_test, 
-                           model_name='XGBoost', use_ensemble=False,
-                           use_kernel=False):
-    """
-    Complete SHAP analysis workflow
-    
     Parameters:
     -----------
-    pipeline_dir : str
-        Path to saved pipeline
-    X_train : DataFrame or array
-        Training data (for global importance)
-    X_test : DataFrame or array
-        Test data (for individual predictions)
+    shap_values : numpy array
+        SHAP values
+    feature_names : list
+        Feature names
     model_name : str
-        Which model to analyze (if use_ensemble=False)
-    use_ensemble : bool
-        If True, analyze ensemble. If False, analyze individual model.
-    use_kernel : bool
-        Only for ensemble: If True, use exact KernelExplainer (slow).
-        If False, use fast weighted average method (recommended).
+        Name for the plot title
+    max_display : int
+        Maximum number of features to display
+    save_path : str, optional
+        Path to save the plot
     """
-    
-    print("="*70)
-    print("SHAP ANALYSIS WORKFLOW")
-    print("="*70)
-    
-    # Load pipeline
-    print("\n1. Loading pipeline...")
-    saved = load_pipeline(pipeline_dir)
-    
-    # Calculate SHAP values on training data (for global importance)
-    print("\n2. Calculating SHAP values on training data...")
-    
-    if use_ensemble:
-        shap_train, explainer, feature_names = calculate_shap_ensemble(
-            saved, X_train, background_size=100, use_kernel=use_kernel
-        )
-        model_label = "Ensemble" + (" (Exact)" if use_kernel else " (Fast)")
-    else:
-        shap_train, explainer, feature_names = calculate_shap_individual_models(
-            saved, X_train, model_name=model_name
-        )
-        model_label = model_name
-    
-    # Global feature importance
-    print("\n3. Global Feature Importance (Training Data):")
-    top_features = get_top_features(shap_train, feature_names, top_n=10)
-    print(top_features.to_string(index=False))
-    
-    # Visualizations on training data
-    print("\n4. Creating visualizations...")
-    
-    # Summary plot (global importance)
-    plot_shap_summary(
-        shap_train, X_train, feature_names, 
-        model_name=f"{model_label} (Training Data)",
-        save_path=f'shap_summary_{model_label.lower().replace(" ", "_")}.png'
+    print(f"\n{'='*70}")
+    print(f"Creating SHAP Bar Plot for {model_name}")
+    print(f"{'='*70}")
+
+    # Calculate mean absolute SHAP values
+    mean_abs_shap = np.abs(shap_values).mean(axis=0)
+
+    # Sort by importance
+    indices = np.argsort(mean_abs_shap)[::-1][:max_display]
+
+    plt.figure(figsize=(10, 8))
+    plt.barh(
+        range(len(indices)),
+        mean_abs_shap[indices],
+        color='steelblue'
     )
-    
-    # Calculate SHAP values on test data (for individual predictions)
-    print("\n5. Calculating SHAP values on test data...")
-    
-    if use_ensemble:
-        shap_test, _, _ = calculate_shap_ensemble(
-            saved, X_test, background_size=100, use_kernel=use_kernel
-        )
-    else:
-        # For tree models, can reuse explainer
-        X_test_np = X_test.to_numpy() if hasattr(X_test, 'to_numpy') else X_test
-        shap_test = explainer.shap_values(X_test_np)
-        if isinstance(shap_test, list):
-            shap_test = shap_test[1]
-    
-    # Individual prediction explanations
-    print("\n6. Explaining individual predictions...")
-    
-    # Example: Explain first 3 test samples
-    for i in range(min(3, X_test.shape[0])):
-        print(f"\n   Sample {i}:")
-        plot_shap_waterfall(
-            shap_test, X_test, feature_names, 
-            sample_idx=i, model_name=model_label,
-            save_path=f'shap_waterfall_{model_label.lower().replace(" ", "_")}_sample{i}.png'
-        )
-    
-    print("\n" + "="*70)
-    print("✓ SHAP Analysis Complete!")
-    print("="*70)
-    
-    return {
-        'shap_train': shap_train,
-        'shap_test': shap_test,
-        'explainer': explainer,
-        'feature_names': feature_names,
-        'top_features': top_features
-    }
+    plt.yticks(range(len(indices)), [feature_names[i] for i in indices])
+    plt.xlabel('Mean |SHAP value|', fontsize=12)
+    plt.title(f'Feature Importance (SHAP) - {model_name}', fontsize=14)
+    plt.gca().invert_yaxis()
+    plt.tight_layout()
+
+    if save_path:
+        plt.savefig(save_path, dpi=300, bbox_inches='tight')
+        print(f"✓ Plot saved to: {save_path}")
+
+    plt.show()
+    print(f"✓ Bar plot displayed")
 
 
-# ============================================================================
-# USAGE EXAMPLES
-# ============================================================================
+def get_feature_importance_df(shap_values, feature_names):
+    """
+    Get feature importance as a pandas DataFrame
+
+    Parameters:
+    -----------
+    shap_values : numpy array
+        SHAP values
+    feature_names : list
+        Feature names
+
+    Returns:
+    --------
+    df : pandas DataFrame
+        Feature importance sorted by mean absolute SHAP value
+    """
+    import pandas as pd
+
+    mean_abs_shap = np.abs(shap_values).mean(axis=0)
+
+    df = pd.DataFrame({
+        'feature': feature_names,
+        'mean_abs_shap': mean_abs_shap
+    })
+
+    df = df.sort_values('mean_abs_shap', ascending=False).reset_index(drop=True)
+
+    return df
+
 
 if __name__ == "__main__":
-    """
-    # Example 1: SHAP for single model (FAST - recommended for tree models)
-    
-    from ml_pipeline import load_pipeline
-    
-    # Load pipeline
-    saved = load_pipeline('my_experiment')
-    
-    # Calculate SHAP for XGBoost on training data
-    shap_values, explainer, feature_names = calculate_shap_individual_models(
-        saved, X_train, model_name='XGBoost'
-    )
-    
-    # Visualize global importance
-    plot_shap_summary(shap_values, X_train, feature_names, model_name='XGBoost')
-    
-    # Get top features
-    top_features = get_top_features(shap_values, feature_names, top_n=10)
-    print(top_features)
-    
-    # Explain individual prediction
-    shap_test = explainer.shap_values(X_test.to_numpy())
-    if isinstance(shap_test, list):
-        shap_test = shap_test[1]
-    
-    plot_shap_waterfall(shap_test, X_test, feature_names, sample_idx=0, 
-                       model_name='XGBoost')
-    
-    
-    # Example 2: SHAP for ensemble (SLOWER but explains ensemble)
-    
-    saved = load_pipeline('my_experiment')
-    
-    # Calculate SHAP for ensemble
-    shap_values, explainer, feature_names = calculate_shap_ensemble(
-        saved, X_train, background_size=100
-    )
-    
-    # Same visualizations as above
-    plot_shap_summary(shap_values, X_train, feature_names, model_name='Ensemble')
-    
-    
-    # Example 3: Complete workflow (does everything)
-    
-    results = shap_analysis_workflow(
-        pipeline_dir='my_experiment',
-        X_train=X_train,
-        X_test=X_test,
-        model_name='XGBoost',  # Analyze XGBoost
-        use_ensemble=False     # Set True to analyze ensemble
-    )
-    
-    # Access results
-    shap_train = results['shap_train']
-    top_features = results['top_features']
-    
-    
-    # Example 4: Compare SHAP values across all models
-    
-    saved = load_pipeline('my_experiment')
-    
-    for model_name in ['ExtraTrees', 'XGBoost', 'LightGBM', 'CatBoost', 'HistGradientBoosting']:
-        print(f"\n{'='*70}")
-        print(f"Analyzing {model_name}")
-        print(f"{'='*70}")
-        
-        shap_values, explainer, feature_names = calculate_shap_individual_models(
-            saved, X_train, model_name=model_name
-        )
-        
-        top_features = get_top_features(shap_values, feature_names, top_n=5)
-        print(f"\nTop 5 features for {model_name}:")
-        print(top_features.to_string(index=False))
-    """
-    pass
+    print("SHAP Analysis Module")
+    print("Use calculate_shap_ensemble() or calculate_shap_individual_models()")

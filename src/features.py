@@ -6,28 +6,28 @@ from datetime import timedelta
 def add_overall_winning_pct(df):
     # Sort by date to ensure chronological order
     df = df.sort("date")
-    
+
     # Create a helper column for wins
     df = df.with_columns([
         pl.col("is_home_win").alias("home_win"),
         (~pl.col("is_home_win")).alias("guest_win")
     ])
-    
+
     # Process home team stats
     home_stats = (
         df.select(["date", "home_team", "home_win"])
         .rename({"home_team": "team", "home_win": "win"})
     )
-    
+
     # Process guest team stats
     guest_stats = (
         df.select(["date", "guest_team", "guest_win"])
         .rename({"guest_team": "team", "guest_win": "win"})
     )
-    
+
     # Combine both perspectives
     all_games = pl.concat([home_stats, guest_stats]).sort("date")
-    
+
     # Calculate cumulative stats per team, SHIFTED to show stats BEFORE each game
     cumulative_stats = (
         all_games
@@ -39,7 +39,7 @@ def add_overall_winning_pct(df):
         ])
         .explode(["date", "cumulative_wins", "cumulative_games"])
     )
-    
+
     # Join back to get stats as of each date for home team
     df = df.join(
         cumulative_stats,
@@ -50,7 +50,7 @@ def add_overall_winning_pct(df):
         "cumulative_games": "games_this_year_home_team",
         "cumulative_wins": "wins_this_year_home_team"
     })
-    
+
     # Join back to get stats as of each date for guest team
     df = df.join(
         cumulative_stats,
@@ -61,30 +61,31 @@ def add_overall_winning_pct(df):
         "cumulative_games": "games_this_year_guest_team",
         "cumulative_wins": "wins_this_year_guest_team"
     })
-    
+
     # Calculate win percentages
     df = df.with_columns([
         (pl.col("wins_this_year_home_team") / pl.col("games_this_year_home_team"))
-            .fill_nan(None)
-            .alias("win_pct_home"),
+        .fill_nan(None)
+        .alias("win_pct_home"),
         (pl.col("wins_this_year_guest_team") / pl.col("games_this_year_guest_team"))
-            .fill_nan(None)
-            .alias("win_pct_guest")
-    ])
-    
+        .fill_nan(None)
+        .alias("win_pct_guest")
+    ]).drop(["home_win", "guest_win"])
+
     return df
+
 
 def add_location_winning_pct(df):
     # Sort by date to ensure chronological order
     df = df.sort("date")
-    
+
     # Process home team stats (only home games)
     home_stats = (
         df.select(["date", "home_team", "is_home_win"])
         .rename({"home_team": "team", "is_home_win": "win"})
         .with_columns(pl.lit("home").alias("location"))
     )
-    
+
     # Process guest team stats (only away games)
     guest_stats = (
         df.select(["date", "guest_team", "is_home_win"])
@@ -95,10 +96,10 @@ def add_location_winning_pct(df):
         ])
         .select(["date", "team", "win", "location"])  # Select only the columns we need
     )
-    
+
     # Combine both perspectives
     all_games = pl.concat([home_stats, guest_stats]).sort("date")
-    
+
     # Calculate cumulative stats per team at each location, SHIFTED to show stats BEFORE each game
     cumulative_stats_home = (
         all_games
@@ -106,12 +107,12 @@ def add_location_winning_pct(df):
         .group_by("team")
         .agg([
             pl.col("date"),
-            pl.col("win").cum_sum().shift(1, fill_value=0).alias("cumulative_wins_home"),
+            pl.col("win").sort_by("date").cum_sum().shift(1, fill_value=0).alias("cumulative_wins_home"),
             pl.int_range(pl.len()).alias("cumulative_games_home")
         ])
         .explode(["date", "cumulative_wins_home", "cumulative_games_home"])
     )
-    
+
     cumulative_stats_away = (
         all_games
         .filter(pl.col("location") == "away")
@@ -123,7 +124,7 @@ def add_location_winning_pct(df):
         ])
         .explode(["date", "cumulative_wins_away", "cumulative_games_away"])
     )
-    
+
     # Join back to get home stats for home team
     df = df.join(
         cumulative_stats_home,
@@ -134,7 +135,7 @@ def add_location_winning_pct(df):
         "cumulative_games_home": "home_games_this_year_home_team",
         "cumulative_wins_home": "home_wins_this_year_home_team"
     })
-    
+
     # Join back to get away stats for guest team
     df = df.join(
         cumulative_stats_away,
@@ -145,23 +146,24 @@ def add_location_winning_pct(df):
         "cumulative_games_away": "away_games_this_year_guest_team",
         "cumulative_wins_away": "away_wins_this_year_guest_team"
     })
-    
+
     # Calculate win percentages
     df = df.with_columns([
         (pl.col("home_wins_this_year_home_team") / pl.col("home_games_this_year_home_team"))
-            .fill_nan(None)
-            .alias("home_win_pct_home"),
+        .fill_nan(None)
+        .alias("home_win_pct_home"),
         (pl.col("away_wins_this_year_guest_team") / pl.col("away_games_this_year_guest_team"))
-            .fill_nan(None)
-            .alias("away_win_pct_guest")
+        .fill_nan(None)
+        .alias("away_win_pct_guest")
     ])
-    
+
     return df
+
 
 def h2h(df):
     # Sort by date to ensure chronological order
     df = df.sort("date")
-    
+
     # Create all matchups - we need to look at both directions
     # First, games where current home_team played against current guest_team
     matchups_home_perspective = df.select([
@@ -173,12 +175,12 @@ def h2h(df):
         pl.col("is_home_win").cast(pl.Int64).alias("home_team_won"),
         (~pl.col("is_home_win")).cast(pl.Int64).alias("guest_team_won")
     ])
-    
+
     # Second, games where current home_team was guest and current guest_team was home
     matchups_reversed = df.select([
         "date",
         "guest_team",
-        "home_team", 
+        "home_team",
         "is_home_win"
     ]).rename({
         "guest_team": "home_team",
@@ -187,37 +189,37 @@ def h2h(df):
         (~pl.col("is_home_win")).cast(pl.Int64).alias("home_team_won"),
         pl.col("is_home_win").cast(pl.Int64).alias("guest_team_won")
     ])
-    
+
     # Combine both perspectives
     all_matchups = pl.concat([matchups_home_perspective, matchups_reversed]).sort("date")
-    
+
     # Calculate cumulative H2H stats
     h2h_stats = (
         all_matchups
         .group_by(["home_team", "guest_team"])
         .agg([
             pl.col("date"),
-            pl.col("home_team_won").cum_sum().shift(1, fill_value=0).alias("h2h_wins_home"),
-            pl.col("guest_team_won").cum_sum().shift(1, fill_value=0).alias("h2h_wins_guest"),
+            pl.col("home_team_won").sort_by("date").cum_sum().shift(1, fill_value=0).alias("h2h_wins_home"),
+            pl.col("guest_team_won").sort_by("date").cum_sum().shift(1, fill_value=0).alias("h2h_wins_guest"),
             pl.int_range(0, pl.len()).alias("h2h_games")
         ])
         .explode(["date", "h2h_wins_home", "h2h_wins_guest", "h2h_games"])
     )
-    
+
     # Join back to original dataframe
     df = df.join(
         h2h_stats,
         on=["date", "home_team", "guest_team"],
         how="left"
     )
-    
+
     # Calculate H2H win percentage
     df = df.with_columns([
         (pl.col("h2h_wins_home") / pl.col("h2h_games"))
-            .fill_nan(None)
-            .alias("h2h_win_pct")
+        .fill_nan(None)
+        .alias("h2h_win_pct")
     ])
-    
+
     return df
 
 
@@ -233,7 +235,7 @@ def team_boxscores(df, team):
         (pl.col("pts_home") < pl.col("pts_guest")).alias("is_win")
     ])
     team_stats_home_df = home_df.select(
-            ~cs.matches('_guest|is_win')
+        ~cs.matches('_guest|is_win')
     ).rename(lambda c: c.replace('_home', ''))
     opp_stats_home_df = home_df.select([
         "drb_guest", "orb_guest", "trb_guest",
@@ -266,15 +268,15 @@ def team_boxscores(df, team):
         (pl.col("off_rtg_opponent") - pl.col("def_rtg_opponent")).alias("net_rtg_opponent"),
         (pl.col("tov") - pl.col("tov_opponent")).alias("tov_diff"),
         (
-            (pl.col("fga") + 0.44 * pl.col("fta")) - 
-            (pl.col("fga_opponent") + 0.44 * pl.col("fta_opponent"))
+                (pl.col("fga") + 0.44 * pl.col("fta")) -
+                (pl.col("fga_opponent") + 0.44 * pl.col("fta_opponent"))
         ).alias("poss_diff"),
         pl.lit(team).alias("team")
     )
     return df
 
 
-def team_season_stats(df, window_sizes = [7, 109]):
+def team_season_stats(df, window_sizes=[7, 109], impute=True):
     absolute_columns = [
         "fg", "fga", "fg3", "fg3a", "ft", "fta", "orb", "drb", "trb",
         "ast", "stl", "blk", "tov", "pts", "pace", "tov_diff", "poss_diff"
@@ -288,28 +290,18 @@ def team_season_stats(df, window_sizes = [7, 109]):
     opponent_columns = [
         "drb_opponent", "orb_opponent", "trb_opponent",
         "fg_opponent", "fga_opponent", "fta_opponent",
-        "fg3_opponent", "pts_opponent", "tov_opponent",
-        "def_rtg_opponent", "off_rtg_opponent", "net_rtg_opponent"
+        "fg3_opponent", "pts_opponent", "tov_opponent"
     ]
-    dropped_cols = ["pf"]
+    dropped_cols = ["pf", "def_rtg_opponent", "off_rtg_opponent", "net_rtg_opponent"]
     drop_cols = absolute_columns + per_100_columns + relative_columns + opponent_columns + dropped_cols
     df = df.with_columns(
-        (pl.col("date") - pl.col("date").shift(1)).dt.total_days().alias("days_since_last_game"),
-        pl.col('is_win').shift(1).alias('has_won_last_game'),
-        (
-            pl.col('date').map_elements(
-                lambda d: df.filter(
-                    (pl.col('date') < d) &
-                    (pl.col('date') >= (d - timedelta(days=7)))
-              ).shape[0], return_dtype=pl.Int64
-            )
-        ).alias('games_last_7_days')
+        pl.col('is_win').shift(1).alias('has_won_last_game')
     ).with_columns([
-        pl.col(c).shift(1).alias(f'{c}_previous_game')
-        for c in absolute_columns + per_100_columns + opponent_columns
-    ] + [
-        (pl.col('pts') - pl.col('pts_opponent')).shift(1).alias('pts_diff_previous_game')
-    ]).with_columns(
+                       pl.col(c).shift(1).alias(f'{c}_previous_game')
+                       for c in absolute_columns + per_100_columns + opponent_columns
+                   ] + [
+                       (pl.col('pts') - pl.col('pts_opponent')).shift(1).alias('pts_diff_previous_game')
+                   ]).with_columns(
         pl.col('has_won_last_game').rle_id().alias('streak')
     ).with_columns([
         pl.col('has_won_last_game').cum_count().over(
@@ -319,156 +311,140 @@ def team_season_stats(df, window_sizes = [7, 109]):
         expr
         for ws in window_sizes
         for expr in [
-            pl.col(f'{c}_previous_game').rolling_mean(
-                window_size=ws, min_samples=1 if ws >= 109 else ws
-            ).alias(f'{c}_{ws}')
-            for c in absolute_columns + per_100_columns + opponent_columns
-        ] + [
-            pl.col(f'{c}_previous_game').ewm_mean(
-                span=ws, min_periods=1 if ws >= 109 else ws
-            ).alias(f'{c}_ewm_{ws}')
-            for c in absolute_columns + per_100_columns + opponent_columns
-        ] + [
-            pl.col(f'{c}_previous_game').rolling_std(
-                window_size=ws, min_samples=1 if ws >= 109 else ws
-            ).alias(f'{c}_{ws}_std')
-            for c in absolute_columns + per_100_columns + opponent_columns
-        ] + [
-            (pl.col('pts_diff_previous_game') >= 15).cast(pl.Int32).rolling_sum(
-                window_size=ws, min_samples=1 if ws >= 109 else ws
-            ).alias(f'blowout_wins_{ws}')
-        ] + [
-            (pl.col('pts_diff_previous_game') <= -15).cast(pl.Int32).rolling_sum(
-                window_size=ws, min_samples=1 if ws >= 109 else ws
-            ).alias(f'blowout_losses_{ws}')
-        ] + [
-                (
-                    pl.col(f'off_rtg_previous_game').rolling_mean(
-                        window_size=ws, min_samples=1 if ws >= 109 else ws
-                    ) - pl.col(f'def_rtg_opponent_previous_game').rolling_mean(
-                        window_size=ws, min_samples=1 if ws >= 109 else ws
-                    )
-                ).alias(f'off_rtg_sos_adj_{ws}')
-            ] + [
-                (
-                    pl.col(f'def_rtg_previous_game').rolling_mean(
-                        window_size=ws, min_samples=1 if ws >= 109 else ws
-                    ) - pl.col(f'off_rtg_opponent_previous_game').rolling_mean(
-                        window_size=ws, min_samples=1 if ws >= 109 else ws
-                    )
-                ).alias(f'def_rtg_sos_adj_{ws}')
-            ]
+                        pl.col(f'{c}_previous_game').rolling_mean(
+                            window_size=ws, min_samples=1 if (ws >= 109 or impute) else ws
+                        ).alias(f'{c}_{ws}')
+                        for c in absolute_columns + per_100_columns + opponent_columns
+                    ] + [
+                        pl.col(f'{c}_previous_game').ewm_mean(
+                            span=ws, min_periods=1 if (ws >= 109 or impute) else ws
+                        ).alias(f'{c}_ewm_{ws}')
+                        for c in absolute_columns + per_100_columns + opponent_columns
+                    ] + [
+                        pl.col(f'{c}_previous_game').rolling_std(
+                            window_size=ws, min_samples=1 if (ws >= 109 or impute) else ws
+                        ).alias(f'{c}_{ws}_std')
+                        for c in absolute_columns + per_100_columns + opponent_columns
+                    ] + [
+                        (pl.col('pts_diff_previous_game') >= 15).cast(pl.Int32).rolling_sum(
+                            window_size=ws, min_samples=1 if (ws >= 109 or impute) else ws
+                        ).alias(f'blowout_wins_{ws}')
+                    ] + [
+                        (pl.col('pts_diff_previous_game') <= -15).cast(pl.Int32).rolling_sum(
+                            window_size=ws, min_samples=1 if (ws >= 109 or impute) else ws
+                        ).alias(f'blowout_losses_{ws}')
+                    ]
     ]).with_columns([
         expr
         for ws in window_sizes
         for expr in [
             (
-                pl.col(f'fg_{ws}') /
-                pl.col(f'fga_{ws}')
+                    pl.col(f'fg_{ws}') /
+                    pl.col(f'fga_{ws}')
             ).alias(f'fg_pct_{ws}'),
             (
-                pl.col(f'fg3_{ws}') /
-                pl.col(f'fg3a_{ws}')
+                    pl.col(f'fg3_{ws}') /
+                    pl.col(f'fg3a_{ws}')
             ).alias(f'fg3_pct_{ws}'),
             (
-                pl.col(f'ft_{ws}') /
-                pl.col(f'fta_{ws}')
+                    pl.col(f'ft_{ws}') /
+                    pl.col(f'fta_{ws}')
             ).alias(f'ft_pct_{ws}'),
             (
-                pl.col(f'ast_{ws}') /
-                pl.col(f'fg_{ws}')
+                    pl.col(f'ast_{ws}') /
+                    pl.col(f'fg_{ws}')
             ).alias(f'ast_pct_{ws}'),
             (
-                pl.col(f'ast_{ws}') /
-                pl.col(f'tov_{ws}')
+                    pl.col(f'ast_{ws}') /
+                    pl.col(f'tov_{ws}')
             ).alias(f'ast_to_tov_{ws}'),
             (
-                pl.col(f'fta_{ws}') /
-                pl.col(f'fga_{ws}')
+                    pl.col(f'fta_{ws}') /
+                    pl.col(f'fga_{ws}')
             ).alias(f'fta_rate_{ws}'),
             (
-                1 - (
-                      pl.col(f'fg3a_{ws}') /
-                      pl.col(f'fga_{ws}')
-                    )
+                    1 - (
+                    pl.col(f'fg3a_{ws}') /
+                    pl.col(f'fga_{ws}')
+            )
             ).alias(f'fg2a_pct_{ws}'),
             (
-                (2 * (
-                    pl.col(f'fg_{ws}') -
-                    pl.col(f'fg3_{ws}')
+                    (2 * (
+                            pl.col(f'fg_{ws}') -
+                            pl.col(f'fg3_{ws}')
                     )
-                ) /
-                pl.col(f'pts_{ws}')
+                     ) /
+                    pl.col(f'pts_{ws}')
             ).alias(f'pts_pct_2_{ws}'),
             (
-                pl.col(f'ft_{ws}') /
-                pl.col(f'pts_{ws}')
+                    pl.col(f'ft_{ws}') /
+                    pl.col(f'pts_{ws}')
             ).alias(f'ptc_pct_ft_{ws}'),
             (
-                (
-                    pl.col(f'fg_{ws}') +
-                    0.5 * pl.col(f'fg3_{ws}')
-                ) /
-                pl.col(f'fga_{ws}')
+                    (
+                            pl.col(f'fg_{ws}') +
+                            0.5 * pl.col(f'fg3_{ws}')
+                    ) /
+                    pl.col(f'fga_{ws}')
             ).alias(f'eff_fg_pct_{ws}'),
             (
-                pl.col(f'pts_{ws}') /
-                (
-                    2 * (
-                          pl.col(f'fga_{ws}') +
-                          (0.44 * pl.col(f'fta_{ws}'))
-                        )
-                )
+                    pl.col(f'pts_{ws}') /
+                    (
+                            2 * (
+                            pl.col(f'fga_{ws}') +
+                            (0.44 * pl.col(f'fta_{ws}'))
+                    )
+                    )
             ).alias(f'ts_pct_{ws}'),
             (
-                pl.col(f'ast_{ws}') * 100 /
-                (
-                    pl.col(f'fga_{ws}') +
-                    0.44 * pl.col(f'fta_{ws}') +
-                    pl.col(f'tov_{ws}') +
-                    pl.col(f'ast_{ws}')
-                )
+                    pl.col(f'ast_{ws}') * 100 /
+                    (
+                            pl.col(f'fga_{ws}') +
+                            0.44 * pl.col(f'fta_{ws}') +
+                            pl.col(f'tov_{ws}') +
+                            pl.col(f'ast_{ws}')
+                    )
             ).alias(f'ast_rat_{ws}'),
             (
-                pl.col(f'trb_{ws}') /
-                (
-                    pl.col(f'trb_{ws}') +
-                    pl.col(f'trb_opponent_{ws}')
-                )
+                    pl.col(f'trb_{ws}') /
+                    (
+                            pl.col(f'trb_{ws}') +
+                            pl.col(f'trb_opponent_{ws}')
+                    )
             ).alias(f'trb_pct_{ws}'),
             (
-                pl.col(f'drb_{ws}') /
-                (
-                    pl.col(f'drb_{ws}') +
-                    pl.col(f'orb_opponent_{ws}')
-                )
+                    pl.col(f'drb_{ws}') /
+                    (
+                            pl.col(f'drb_{ws}') +
+                            pl.col(f'orb_opponent_{ws}')
+                    )
             ).alias(f'drb_pct_{ws}'),
             (
-                pl.col(f'orb_{ws}') /
-                (
-                    pl.col(f'orb_{ws}') +
-                    pl.col(f'drb_opponent_{ws}')
-                )
+                    pl.col(f'orb_{ws}') /
+                    (
+                            pl.col(f'orb_{ws}') +
+                            pl.col(f'drb_opponent_{ws}')
+                    )
             ).alias(f'orb_pct_{ws}'),
             (
-                pl.col(f'fta_opponent_{ws}') /
-                pl.col(f'fga_opponent_{ws}')
+                    pl.col(f'fta_opponent_{ws}') /
+                    pl.col(f'fga_opponent_{ws}')
             ).alias(f'fta_rate_opponent_{ws}'),
             (
-                (
-                    pl.col(f'fg_opponent_{ws}') +
-                    0.5 * pl.col(f'fg3_opponent_{ws}')
-                ) /
-                pl.col(f'fga_opponent_{ws}')
+                    (
+                            pl.col(f'fg_opponent_{ws}') +
+                            0.5 * pl.col(f'fg3_opponent_{ws}')
+                    ) /
+                    pl.col(f'fga_opponent_{ws}')
             ).alias(f'eff_fg_pct_opponent_{ws}'),
             (
-                pl.col(f'pts_opponent_{ws}') /
-                (
-                    2 * (
-                          pl.col(f'fga_opponent_{ws}') +
-                          (0.44 * pl.col(f'fta_opponent_{ws}'))
-                        )
-                )
+                    pl.col(f'pts_opponent_{ws}') /
+                    (
+                            2 * (
+                            pl.col(f'fga_opponent_{ws}') +
+                            (0.44 * pl.col(f'fta_opponent_{ws}'))
+                    )
+                    )
             ).alias(f'ts_pct_opponent_{ws}')
         ]
     ]).drop(drop_cols).with_columns([
@@ -479,7 +455,7 @@ def team_season_stats(df, window_sizes = [7, 109]):
         for ws in window_sizes
         for expr in [
             pl.col(f'{c}_{ws}').rolling_std(
-                window_size = ws, min_samples= 1 if ws >= 109 else ws
+                window_size=ws, min_samples=1 if (ws >= 109 or impute) else ws
             ).alias(f'{c}_{ws}_std')
             for c in relative_columns + ["ts_pct", "eff_fg_pct"]
         ]
@@ -502,18 +478,18 @@ def team_season_stats(df, window_sizes = [7, 109]):
     cols = [col for col in df.columns if col.endswith(f'_{window_sizes[0]}')]
     new_cols = [
         (
-            pl.col(col) / pl.col(col.replace(f'_{window_sizes[0]}', f'_{window_sizes[1]}'))
+                pl.col(col) / pl.col(col.replace(f'_{window_sizes[0]}', f'_{window_sizes[1]}'))
         ).alias(
             col.replace(f'_{window_sizes[0]}', '_vs_avg')
         )
         for col in cols
     ]
-    df=df.with_columns(new_cols)
+    df = df.with_columns(new_cols)
     return df
 
 
 """
-Expected Team Statistics Calculator - Full Enhanced Polars Implementation
+Expected Team Statistics Calculator
 
 Calculates expected team stats PLUS advanced performance indicators:
 - Roster quality counts (plus/minus thresholds)
@@ -521,245 +497,33 @@ Calculates expected team stats PLUS advanced performance indicators:
 - Form indicators (hot/cold streaks)
 - Depth quality metrics
 - Risk/uncertainty measures
+
+Minutes distribution: distributes 240 total minutes across available players
+based on blended historical usage rates, with a 48-minute cap per player.
 """
-
-import polars as pl
-from typing import List
-
-"""
-Expected Team Statistics Calculator - With Realistic Minutes Distribution
-
-Key improvement: Distributes 240 total minutes across available players based on 
-their historical usage rates, respecting the 48-minute maximum per player.
-"""
-
-import polars as pl
-from typing import List
 
 
 def calculate_expected_team_stats(
         df: pl.DataFrame,
-        top_n_players: int = 8
+        top_n_players: int = 10
 ) -> pl.DataFrame:
     """
     Calculate expected team statistics with realistic minutes distribution.
 
-    The key improvement: Instead of using raw historical minutes, this distributes
-    exactly 240 minutes (48 min × 5 positions) across available players based on
-    their usage rates, with a 48-minute cap per player.
+    IMPORTANT: Input should contain ALL teams' data. The function will group by
+    (game_id, team_id) to calculate stats for each team in each game separately.
 
     Args:
-        df: Polars DataFrame with player-level statistics
+        df: Polars DataFrame with columns:
+            - game_id: Game identifier
+            - team_id: Team name
+            - player_id: Player identifier
+            - {stat}_previous_game, {stat}_7, {stat}_109 for each stat
+            - mp_7, mp_109: Minutes data
         top_n_players: Number of rotation players to use (default: 8)
 
     Returns:
-        Polars DataFrame with expected team statistics and performance indicators
-    """
-
-    # Define statistics
-    counting_stats = [
-        "fg", "fga", "fg3", "fg3a", "ft", "fta",
-        "orb", "drb", "trb", "ast", "stl", "blk", "tov", "pts"
-    ]
-    rate_stats = ["game_score", "plus_minus", "off_rtg", "def_rtg", "bpm"]
-    all_stats = counting_stats + rate_stats
-
-    # Weights: 15% last game, 35% last 7, 50% season
-    W_LAST = 0.15
-    W_SEVEN = 0.35
-    W_SEASON = 0.50
-
-    # Keep players with either mp_7 OR mp_109
-    df_filtered = df.filter(
-        pl.col("mp_7").is_not_null() | pl.col("mp_109").is_not_null()
-    )
-
-    # Historical minutes (for usage rate calculation)
-    df_filtered = df_filtered.with_columns([
-        pl.when(pl.col("mp_7").is_not_null())
-        .then(pl.col("mp_7"))
-        .otherwise(pl.col("mp_109"))
-        .alias("historical_minutes")
-    ])
-
-    # Calculate weighted stats
-    weighted_exprs = [
-        (
-                W_LAST * pl.col(f"{stat}_previous_game").fill_null(0) +
-                W_SEVEN * pl.col(f"{stat}_7").fill_null(0) +
-                W_SEASON * pl.col(f"{stat}_109").fill_null(0)
-        ).alias(f"{stat}_weighted")
-        for stat in all_stats
-    ]
-
-    df_weighted = df_filtered.with_columns(weighted_exprs)
-
-    # Select top N players per game by historical minutes
-    df_top = (
-        df_weighted
-        .sort("historical_minutes", descending=True)
-        .group_by("game_id")
-        .agg([
-            pl.col("team_id").first(),
-            pl.col("player_id").head(top_n_players),
-            *[pl.col(f"{stat}_weighted").head(top_n_players) for stat in all_stats],
-            pl.col("historical_minutes").head(top_n_players),
-            # Keep mp_7 and mp_109 for additional calculations
-            pl.col("mp_7").head(top_n_players),
-            pl.col("mp_109").head(top_n_players),
-            # For consistency and form metrics
-            *[pl.col(f"{stat}_7_std").head(top_n_players) for stat in
-              ["pts", "off_rtg", "def_rtg", "plus_minus"]],
-            *[pl.col(f"{stat}_7").head(top_n_players) for stat in
-              ["pts", "off_rtg", "plus_minus"]],
-            *[pl.col(f"{stat}_109").head(top_n_players) for stat in
-              ["pts", "off_rtg", "plus_minus"]],
-        ])
-    )
-
-    # Explode to player-game level
-    explode_cols = [
-        "player_id",
-        *[f"{stat}_weighted" for stat in all_stats],
-        "historical_minutes",
-        "mp_7",
-        "mp_109",
-        "pts_7_std", "off_rtg_7_std", "def_rtg_7_std", "plus_minus_7_std",
-        "pts_7", "off_rtg_7", "plus_minus_7",
-        "pts_109", "off_rtg_109", "plus_minus_109",
-    ]
-    df_exploded = df_top.explode(explode_cols)
-
-    # CALCULATE REALISTIC EXPECTED MINUTES PER GAME
-    # Step 1: Calculate usage rates (proportion of historical minutes)
-    df_exploded = df_exploded.with_columns([
-        (pl.col("historical_minutes") / pl.col("historical_minutes").sum().over("game_id"))
-        .alias("usage_rate")
-    ])
-
-    # Step 2: Distribute 240 minutes based on usage rates
-    TOTAL_GAME_MINUTES = 240.0
-    MAX_PLAYER_MINUTES = 48.0
-
-    df_exploded = df_exploded.with_columns([
-        (pl.col("usage_rate") * TOTAL_GAME_MINUTES)
-        .clip(upper_bound=MAX_PLAYER_MINUTES)
-        .alias("expected_minutes_unconstrained")
-    ])
-
-    # Step 3: If total > 240 after capping, redistribute excess minutes
-    # (This handles cases where multiple stars would exceed 48 min)
-    df_exploded = df_exploded.with_columns([
-        pl.col("expected_minutes_unconstrained").sum().over("game_id").alias("total_unconstrained")
-    ])
-
-    df_exploded = df_exploded.with_columns([
-        pl.when(pl.col("total_unconstrained") > TOTAL_GAME_MINUTES)
-        .then(
-            # Scale down proportionally
-            pl.col("expected_minutes_unconstrained") *
-            (TOTAL_GAME_MINUTES / pl.col("total_unconstrained"))
-        )
-        .otherwise(pl.col("expected_minutes_unconstrained"))
-        .alias("expected_minutes")
-    ])
-
-    # Build aggregation expressions
-    agg_exprs = [
-        pl.col("team_id").first(),
-        pl.col("player_id").count().alias("num_players"),
-        pl.col("expected_minutes").sum().alias("total_minutes_check"),  # Should be ~240
-    ]
-
-    # Counting stats: weighted by expected minutes / historical minutes
-    for stat in counting_stats:
-        agg_exprs.append(
-            (pl.col(f"{stat}_weighted") * pl.col("expected_minutes") / pl.col("historical_minutes"))
-            .sum()
-            .alias(f"exp_{stat}")
-        )
-
-    # Rate stats: minutes-weighted average
-    total_minutes = pl.col("expected_minutes").sum()
-    for stat in rate_stats:
-        agg_exprs.append(
-            ((pl.col(f"{stat}_weighted") * pl.col("expected_minutes")).sum() / total_minutes)
-            .alias(f"exp_{stat}")
-        )
-
-    # CONSISTENCY METRICS
-    agg_exprs.extend([
-        ((pl.col("pts_7_std").fill_null(0) * pl.col("expected_minutes")).sum() / total_minutes)
-        .alias("avg_pts_volatility"),
-        ((pl.col("off_rtg_7_std").fill_null(0) * pl.col("expected_minutes")).sum() / total_minutes)
-        .alias("avg_off_rtg_volatility"),
-        ((pl.col("def_rtg_7_std").fill_null(0) * pl.col("expected_minutes")).sum() / total_minutes)
-        .alias("avg_def_rtg_volatility"),
-        ((pl.col("plus_minus_7_std").fill_null(0) * pl.col("expected_minutes")).sum() / total_minutes)
-        .alias("avg_plus_minus_volatility"),
-    ])
-
-    # FORM INDICATORS
-    agg_exprs.extend([
-        ((pl.col("pts_7").fill_null(pl.col("pts_109")).fill_null(0) -
-          pl.col("pts_109").fill_null(0)) * pl.col("expected_minutes")).sum()
-        .alias("pts_recent_vs_season"),
-
-        (((pl.col("off_rtg_7").fill_null(pl.col("off_rtg_109")).fill_null(0) -
-           pl.col("off_rtg_109").fill_null(0)) * pl.col("expected_minutes")).sum() / total_minutes)
-        .alias("off_rtg_recent_vs_season"),
-
-        (((pl.col("plus_minus_7").fill_null(pl.col("plus_minus_109")).fill_null(0) -
-           pl.col("plus_minus_109").fill_null(0)) * pl.col("expected_minutes")).sum() / total_minutes)
-        .alias("plus_minus_recent_vs_season"),
-    ])
-
-    result = df_exploded.group_by("game_id").agg(agg_exprs)
-
-    # Calculate shooting percentages
-    result = result.with_columns([
-        (pl.col("exp_fg") / pl.col("exp_fga")).alias("exp_fg_pct"),
-        (pl.col("exp_fg3") / pl.col("exp_fg3a")).alias("exp_fg3_pct"),
-        (pl.col("exp_ft") / pl.col("exp_fta")).alias("exp_ft_pct")
-    ])
-
-    # Add plus/minus player counts
-    result = add_plus_minus_counts(df_filtered, result)
-
-    # Add advanced performance indicators
-    result = add_advanced_indicators(df_filtered, result)
-
-    return result.sort("game_id")
-
-
-"""
-Expected Team Statistics Calculator - With Realistic Minutes Distribution
-
-Key improvement: Distributes 240 total minutes across available players based on 
-their historical usage rates, respecting the 48-minute maximum per player.
-"""
-
-import polars as pl
-from typing import List
-
-
-def calculate_expected_team_stats(
-        df: pl.DataFrame,
-        top_n_players: int = 8
-) -> pl.DataFrame:
-    """
-    Calculate expected team statistics with realistic minutes distribution.
-
-    The key improvement: Instead of using raw historical minutes, this distributes
-    exactly 240 minutes (48 min × 5 positions) across available players based on
-    their usage rates, with a 48-minute cap per player.
-
-    Args:
-        df: Polars DataFrame with player-level statistics
-        top_n_players: Number of rotation players to use (default: 8)
-
-    Returns:
-        Polars DataFrame with expected team statistics and performance indicators
+        Polars DataFrame with one row per (game_id, team_id) combination
     """
 
     # Define statistics
@@ -789,7 +553,7 @@ def calculate_expected_team_stats(
     ])
 
     # Calculate weighted stats with proper fallback logic
-    # When recent data (previous_game or _7) is missing, fall back to season average
+    # When recent data is missing, fall back to season average
     weighted_exprs = [
         (
                 W_LAST * pl.col(f"{stat}_previous_game").fill_null(pl.col(f"{stat}_109")).fill_null(0) +
@@ -801,17 +565,16 @@ def calculate_expected_team_stats(
 
     df_weighted = df_filtered.with_columns(weighted_exprs)
 
-    # Select top N players per game by historical minutes
+    # Select top N players per (game_id, team_id) by historical minutes
+    # CRITICAL: Group by BOTH game_id AND team_id
     df_top = (
         df_weighted
         .sort("historical_minutes", descending=True)
-        .group_by("game_id")
+        .group_by(["game_id", "team_id"])  # ← FIXED: Group by both!
         .agg([
-            pl.col("team_id").first(),
             pl.col("player_id").head(top_n_players),
             *[pl.col(f"{stat}_weighted").head(top_n_players) for stat in all_stats],
             pl.col("historical_minutes").head(top_n_players),
-            # Keep mp_7 and mp_109 for additional calculations
             pl.col("mp_7").head(top_n_players),
             pl.col("mp_109").head(top_n_players),
             # For consistency and form metrics
@@ -837,10 +600,11 @@ def calculate_expected_team_stats(
     ]
     df_exploded = df_top.explode(explode_cols)
 
-    # CALCULATE REALISTIC EXPECTED MINUTES PER GAME
-    # Step 1: Calculate usage rates (proportion of historical minutes)
+    # CALCULATE REALISTIC EXPECTED MINUTES
+    # Step 1: Calculate usage rates within each team
     df_exploded = df_exploded.with_columns([
-        (pl.col("historical_minutes") / pl.col("historical_minutes").sum().over("game_id"))
+        (pl.col("historical_minutes") /
+         pl.col("historical_minutes").sum().over(["game_id", "team_id"]))  # ← Group by both!
         .alias("usage_rate")
     ])
 
@@ -854,28 +618,26 @@ def calculate_expected_team_stats(
         .alias("expected_minutes_unconstrained")
     ])
 
-    # Step 3: If total > 240 after capping, redistribute excess minutes
-    # (This handles cases where multiple stars would exceed 48 min)
+    # Step 3: Calculate total after capping
     df_exploded = df_exploded.with_columns([
-        pl.col("expected_minutes_unconstrained").sum().over("game_id").alias("total_unconstrained")
+        pl.col("expected_minutes_unconstrained").sum().over(["game_id", "team_id"])
+        .alias("total_unconstrained")
     ])
 
+    # Step 4: Scale to EXACTLY 240 minutes (whether over or under)
+    # This handles both cases:
+    # - If sum > 240 (after capping): Scale down
+    # - If sum < 240 (too few players/minutes): Scale UP
     df_exploded = df_exploded.with_columns([
-        pl.when(pl.col("total_unconstrained") > TOTAL_GAME_MINUTES)
-        .then(
-            # Scale down proportionally
-            pl.col("expected_minutes_unconstrained") *
-            (TOTAL_GAME_MINUTES / pl.col("total_unconstrained"))
-        )
-        .otherwise(pl.col("expected_minutes_unconstrained"))
+        (pl.col("expected_minutes_unconstrained") *
+         (TOTAL_GAME_MINUTES / pl.col("total_unconstrained")))
         .alias("expected_minutes")
     ])
 
     # Build aggregation expressions
     agg_exprs = [
-        pl.col("team_id").first(),
         pl.col("player_id").count().alias("num_players"),
-        pl.col("expected_minutes").sum().alias("total_minutes_check"),  # Should be ~240
+        pl.col("expected_minutes").sum().alias("total_minutes_check"),  # Should be exactly 240
     ]
 
     # Counting stats: weighted by expected minutes / historical minutes
@@ -921,7 +683,8 @@ def calculate_expected_team_stats(
         .alias("plus_minus_recent_vs_season"),
     ])
 
-    result = df_exploded.group_by("game_id").agg(agg_exprs)
+    # Group by BOTH game_id AND team_id
+    result = df_exploded.group_by(["game_id", "team_id"]).agg(agg_exprs)
 
     # Calculate shooting percentages
     result = result.with_columns([
@@ -936,7 +699,7 @@ def calculate_expected_team_stats(
     # Add advanced performance indicators
     result = add_advanced_indicators(df_filtered, result)
 
-    return result.sort("game_id").drop(["total_minutes_check", "num_players"])
+    return result.sort(["game_id", "team_id"])
 
 
 def add_plus_minus_counts(
@@ -947,18 +710,15 @@ def add_plus_minus_counts(
 
     thresholds = [0, 2, 4, 6, 8, 10]
 
-    pm_counts = df_filtered.group_by("game_id").agg([
-        pl.col("team_id").first(),
+    # Group by BOTH game_id AND team_id
+    pm_counts = df_filtered.group_by(["game_id", "team_id"]).agg([
         *[(pl.col("plus_minus_109").fill_null(-999) >= threshold)
           .sum()
           .alias(f"players_pm109_gte_{threshold}")
           for threshold in thresholds]
     ])
 
-    result = result.join(pm_counts, on="game_id", how="left")
-
-    if "team_id_right" in result.columns:
-        result = result.drop("team_id_right")
+    result = result.join(pm_counts, on=["game_id", "team_id"], how="left")
 
     return result
 
@@ -977,9 +737,8 @@ def add_advanced_indicators(
         .alias("minutes_for_calc")
     ])
 
-    advanced = df_with_minutes.group_by("game_id").agg([
-        pl.col("team_id").first(),
-
+    # Group by BOTH game_id AND team_id
+    advanced = df_with_minutes.group_by(["game_id", "team_id"]).agg([
         # MINUTES CONCENTRATION
         (pl.col("minutes_for_calc").std() / (pl.col("minutes_for_calc").mean() + 0.01))
         .alias("minutes_concentration"),
@@ -1013,46 +772,62 @@ def add_advanced_indicators(
         .alias("high_volatility_player_pct"),
     ])
 
-    result = result.join(advanced, on="game_id", how="left")
-
-    if "team_id_right" in result.columns:
-        result = result.drop("team_id_right")
+    result = result.join(advanced, on=["game_id", "team_id"], how="left")
 
     return result
 
 
 def prepare_home_away_features(
-        home_df: pl.DataFrame,
-        away_df: pl.DataFrame,
-        game_id: str
+        df: pl.DataFrame,
+        game_id: str,
+        home_team: str,
+        away_team: str,
+        top_n_players: int = 10
 ) -> pl.DataFrame:
-    """Prepare home/away features for a single game."""
+    """
+    Prepare home/away features for a single game.
 
-    home_stats = calculate_expected_team_stats(home_df)
-    away_stats = calculate_expected_team_stats(away_df)
+    Args:
+        df: Full dataset with all teams
+        game_id: Game identifier
+        home_team: Home team name
+        away_team: Away team name
+        top_n_players: Number of rotation players
 
-    home_game = home_stats.filter(pl.col("game_id") == game_id)
-    away_game = away_stats.filter(pl.col("game_id") == game_id)
+    Returns:
+        Single-row DataFrame with home_ and away_ prefixed features
+    """
 
+    # Filter to this game
+    game_data = df.filter(pl.col("game_id") == game_id)
+
+    # Calculate stats for both teams
+    stats = calculate_expected_team_stats(game_data, top_n_players)
+
+    # Split home and away
+    home_stats = stats.filter(pl.col("team_id") == home_team)
+    away_stats = stats.filter(pl.col("team_id") == away_team)
+
+    # Add prefixes
     exclude_cols = ["game_id", "team_id"]
 
-    home_game = home_game.select([
+    home_stats = home_stats.select([
         pl.col("game_id"),
         *[pl.col(col).alias(f"home_{col}")
-          for col in home_game.columns if col not in exclude_cols]
+          for col in home_stats.columns if col not in exclude_cols]
     ])
 
-    away_game = away_game.select([
+    away_stats = away_stats.select([
         pl.col("game_id"),
         *[pl.col(col).alias(f"away_{col}")
-          for col in away_game.columns if col not in exclude_cols]
+          for col in away_stats.columns if col not in exclude_cols]
     ])
 
-    return home_game.join(away_game, on="game_id")
+    # Join
+    return home_stats.join(away_stats, on="game_id")
 
 
-
-def player_season_stats(df, window_sizes = [7, 109]):
+def player_season_stats(df, window_sizes=[7, 109], impute=True):
     absolute_columns = [
         "mp", "fg", "fga", "fg3", "fg3a", "ft", "fta", "orb", "drb",
         "trb", "ast", "stl", "blk", "tov", "pts", "game_score",
@@ -1065,33 +840,34 @@ def player_season_stats(df, window_sizes = [7, 109]):
         "fta_per_fga_pct", "tov_pct"
     ]
     dropped_cols = ["ts_pct", "efg_pct", "pf"]
-    df = df.with_columns([
+    df = df.sort("game_id").with_columns([
         pl.col(c).shift(1).over(pl.col("player_id")).alias(f'{c}_previous_game')
         for c in absolute_columns + per_100_columns
     ]).with_columns([
         expr
         for ws in window_sizes
         for expr in [
-            pl.col(f'{c}_previous_game').rolling_mean(
-                window_size=ws, min_samples=1 if (ws >= 109 or c == "mp") else ws
-            ).over(pl.col("player_id")).alias(f'{c}_{ws}')
-            for c in absolute_columns + per_100_columns
-        ] + [
-            pl.col(f'{c}_previous_game').ewm_mean(
-                span=ws, min_periods=1 if ws >= 109 else ws
-            ).over(pl.col("player_id")).alias(f'{c}_ewm_{ws}')
-            for c in absolute_columns + per_100_columns
-        ] + [
-            pl.col(f'{c}_previous_game').rolling_std(
-                window_size=ws, min_samples=1 if ws >= 109 else ws
-            ).over(pl.col("player_id")).alias(f'{c}_{ws}_std')
-            for c in absolute_columns + per_100_columns
-        ]
+                        pl.col(f'{c}_previous_game').rolling_mean(
+                            window_size=ws, min_samples=1 if (ws >= 109 or c == "mp" or impute) else ws
+                        ).over(pl.col("player_id")).alias(f'{c}_{ws}')
+                        for c in absolute_columns + per_100_columns
+                    ] + [
+                        pl.col(f'{c}_previous_game').ewm_mean(
+                            span=ws, min_periods=1 if (ws >= 109 or impute) else ws
+                        ).over(pl.col("player_id")).alias(f'{c}_ewm_{ws}')
+                        for c in absolute_columns + per_100_columns
+                    ] + [
+                        pl.col(f'{c}_previous_game').rolling_std(
+                            window_size=ws, min_samples=1 if (ws >= 109 or impute) else ws
+                        ).over(pl.col("player_id")).alias(f'{c}_{ws}_std')
+                        for c in absolute_columns + per_100_columns
+                    ]
     ]).drop(
         absolute_columns + per_100_columns + relative_columns +
         dropped_cols
     )
     return df
+
 
 """
 NBA Travel Distance Calculator
@@ -1157,7 +933,6 @@ def compute_travel(df) -> pl.DataFrame:
         guest_km_season_total
     """
 
-
     # ------------------------------------------------------------------
     # 2. Build a "team view": one row per (team, game) with the venue
     #    they're playing AT (home or away).
@@ -1205,7 +980,7 @@ def compute_travel(df) -> pl.DataFrame:
                 prev = rows[i - 1]
                 dist_last = haversine_km(
                     prev["latitude"], prev["longitude"],
-                    row["latitude"],  row["longitude"],
+                    row["latitude"], row["longitude"],
                 )
 
             season_total += dist_last
@@ -1228,11 +1003,11 @@ def compute_travel(df) -> pl.DataFrame:
                 window_dist += leg
 
             records.append({
-                "game_id":           row["game_id"],
-                "team":              row["team"],
+                "game_id": row["game_id"],
+                "team": row["team"],
                 "km_since_last_game": round(dist_last, 2),
-                "km_last_7_days":    round(window_dist, 2),
-                "km_season_total":   round(season_total, 2),
+                "km_last_7_days": round(window_dist, 2),
+                "km_season_total": round(season_total, 2),
             })
 
     travel = pl.DataFrame(records)
@@ -1246,10 +1021,10 @@ def compute_travel(df) -> pl.DataFrame:
         .join(
             travel
             .rename({
-                "team":              "home_team",
+                "team": "home_team",
                 "km_since_last_game": "home_km_since_last_game",
-                "km_last_7_days":    "home_km_last_7_days",
-                "km_season_total":   "home_km_season_total",
+                "km_last_7_days": "home_km_last_7_days",
+                "km_season_total": "home_km_season_total",
             })
             .select(["game_id", "home_team",
                      "home_km_since_last_game",
@@ -1262,10 +1037,10 @@ def compute_travel(df) -> pl.DataFrame:
         .join(
             travel
             .rename({
-                "team":              "guest_team",
+                "team": "guest_team",
                 "km_since_last_game": "guest_km_since_last_game",
-                "km_last_7_days":    "guest_km_last_7_days",
-                "km_season_total":   "guest_km_season_total",
+                "km_last_7_days": "guest_km_last_7_days",
+                "km_season_total": "guest_km_season_total",
             })
             .select(["game_id", "guest_team",
                      "guest_km_since_last_game",
