@@ -43,7 +43,6 @@ def _():
         accuracy_score,
         create_client,
         date,
-        fetch_entire_table,
         importlib,
         joblib,
         json,
@@ -71,19 +70,11 @@ def _(create_client, json, secretmanager, tabpfn_client):
 
 
 @app.cell
-def _(fetch_entire_table, pl, supabase):
-    temp = pl.read_csv("results_updated.csv")
-    current_preds = fetch_entire_table(supabase, "prediction-comparison")
-    missing = current_preds.filter(
-        ~pl.col("game_id").is_in(temp["game_id"].to_list())
-    )
-    return missing, temp
-
-
-@app.cell
 def _(importlib, ml_helpers, supabase):
     importlib.reload(ml_helpers)
-    games, schedule, player_boxscore, elo = ml_helpers.load_data(supabase, season_ids = [2026], use_player_boxscore=True)
+    games, schedule, player_boxscore, elo = ml_helpers.load_data(
+        supabase, season_ids = [2026], use_player_boxscore=True
+    )
     return elo, games, player_boxscore, schedule
 
 
@@ -98,136 +89,15 @@ def _(elo, games, ml_helpers, pl, player_boxscore, schedule):
 
 
 @app.cell
-def _(missing, pl, preprocessed_data):
-    preprocessed_data.filter(
-        pl.col("game_id").is_in(missing["game_id"].to_list())
-    )
-    return
-
-
-@app.cell
-def _(joblib, json):
-    with open("models/best_features_20260301_log_loss.json", "r") as f:
-        bf = json.load(f)
-    catboost_mod = joblib.load("models/cat_boost_20260301_log_loss.pkl")
-    lgbm_mod = joblib.load("models/lgbm_20260301_log_loss.pkl")
-    xgb_mod = joblib.load("models/xgboost_20260301_log_loss.pkl")
-    extra_mod = joblib.load("models/extra_20260301_log_loss.pkl")
-    ensemble_mod = joblib.load("models/ensemble_20260301_log_loss.pkl")
-    tabpfn_mod = joblib.load("models/tab_pfn_20260301_log_loss.pkl")
-    return (
-        bf,
-        catboost_mod,
-        ensemble_mod,
-        extra_mod,
-        lgbm_mod,
-        tabpfn_mod,
-        xgb_mod,
-    )
-
-
-@app.cell
-def _(
-    bf,
-    catboost_mod,
-    ensemble_mod,
-    extra_mod,
-    lgbm_mod,
-    missing,
-    pl,
-    preprocessed_data,
-    tabpfn_mod,
-    xgb_mod,
-):
-    missing2 = preprocessed_data.filter(pl.col("game_id").is_in(missing["game_id"].to_list()))
-    X3 = missing2.select(bf["features"])
-    c_pred = catboost_mod.predict_proba(X3)
-    l_pred = lgbm_mod.predict_proba(X3)
-    x_pred = xgb_mod.predict_proba(X3)
-    ex_pred = extra_mod.predict_proba(X3)
-    e_pred = ensemble_mod.predict_proba(X3)
-    t_pred = tabpfn_mod.predict_proba(X3.to_numpy())
-    return c_pred, e_pred, ex_pred, l_pred, missing2, t_pred, x_pred
-
-
-@app.cell
-def _(c_pred, e_pred, ex_pred, l_pred, missing2, pl, t_pred, x_pred):
-    temp2 = pl.DataFrame({
-        "game_id": missing2["game_id"],
-        "is_home_win": missing2["is_home_win"],
-        "proba_catboost": c_pred,
-        "proba_lgbm": l_pred,
-        "proba_xgb": x_pred,
-        "proba_extra": ex_pred,
-        "proba_ensemble": e_pred,
-        "proba_tabpfn": t_pred
-    }).with_columns([
-        pl.col("proba_ensemble").arr.last(),
-        pl.col("proba_catboost").arr.last(),
-        pl.col("proba_lgbm").arr.last(),
-        pl.col("proba_xgb").arr.last(),
-        pl.col("proba_extra").arr.last(),
-        pl.col("proba_tabpfn").arr.last()
-    ]).with_columns([
-        (pl.col("proba_catboost") >= 0.5).alias("is_predicted_home_win_catboost"),
-        (pl.col("proba_lgbm") >= 0.5).alias("is_predicted_home_win_lgbm"),
-        (pl.col("proba_xgb") >= 0.5).alias("is_predicted_home_win_xgb"),
-        (pl.col("proba_extra") >= 0.5).alias("is_predicted_home_win_extra"),
-        (pl.col("proba_tabpfn") >= 0.5).alias("is_predicted_home_win_tabpfn"),
-        (pl.col("proba_ensemble") >= 0.5).alias("is_predicted_home_win_ensemble")
-    ])
-    return (temp2,)
-
-
-@app.cell
 def _(importlib, supabase):
     from supabase_helper import fetch_distinct_column_filtered
     import predictions
     importlib.reload(predictions)
     games_to_predict = predictions.upcoming_game_data(supabase)
-    return games_to_predict, predictions
-
-
-@app.cell
-def _(
-    bf,
-    catboost_mod,
-    ensemble_mod,
-    extra_mod,
-    games_to_predict,
-    importlib,
-    lgbm_mod,
-    predictions,
-    tabpfn_mod,
-    xgb_mod,
-):
-    importlib.reload(predictions)
-    upcoming_predictions = predictions.predict_upcoming_games(
-        games_to_predict, bf["features"], {
-            "catboost": catboost_mod,
-            "lgbm": lgbm_mod,
-            "xgb": xgb_mod,
-            "extra": extra_mod,
-            "ensemble": ensemble_mod,
-            "tabpfn": tabpfn_mod
-        }
-    )
-    return (upcoming_predictions,)
-
-
-@app.cell
-def _(pl, supabase, temp, temp2, upcoming_predictions):
-    supabase.table("prediction-comparison").upsert(
-        pl.concat([pl.concat([
-            temp2, upcoming_predictions[temp2.columns]
-        ]).with_columns(
-            pl.col("proba_xgb").cast(pl.Float64)
-        )[temp.columns], temp]).to_dicts()
-    ).execute()
     return
 
 
-@app.cell(disabled=True)
+@app.cell
 def _(
     TabPFNClassifier,
     date,
@@ -400,17 +270,7 @@ def _(
                 "proba": probabilities
             })
             ensemble_result_dfs.append(result_df)
-    return (
-        bf,
-        catboost_mod,
-        ensemble_result_dfs,
-        extra_mod,
-        lgbm_mod,
-        simple_result_dfs,
-        tabpfn_mod,
-        train,
-        xgb_mod,
-    )
+    return ensemble_result_dfs, simple_result_dfs, train
 
 
 @app.cell(disabled=True)
